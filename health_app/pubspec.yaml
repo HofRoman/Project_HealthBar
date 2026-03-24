@@ -1,0 +1,43 @@
+name: health_app
+description: Eine umfassende Gesundheits-App - Cross-Platform für Android, iOS, Windows, macOS, Linux und Web.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Datenbank - läuft auf allen Plattformen
+  sqflite: ^2.3.2
+  sqflite_common_ffi: ^2.3.3       # Für Desktop (Windows/Linux/macOS)
+  path: ^1.9.0
+
+  # State Management
+  provider: ^6.1.2
+
+  # Charts & Diagramme
+  fl_chart: ^0.68.0
+
+  # Icons
+  cupertino_icons: ^1.0.6
+
+  # Datum & Zeit
+  intl: ^0.19.0
+
+  # Einstellungen speichern
+  shared_preferences: ^2.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
