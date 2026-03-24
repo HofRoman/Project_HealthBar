@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:intl/intl.dart';
 import '../services/gemini_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
 import 'settings_screen.dart';
 
 class AiChatScreen extends StatefulWidget {
@@ -14,32 +15,35 @@ class AiChatScreen extends StatefulWidget {
 
 class _AiChatScreenState extends State<AiChatScreen> {
   final _controller = TextEditingController();
-  final _scrollController = ScrollController();
+  final _scrollCtrl = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
   bool _hasApiKey = false;
 
-  // Schnell-Fragen für den Einstieg
-  static const _quickQuestions = [
-    'Was bedeutet ein BMI von 27?',
-    'Wie viel Wasser sollte ich täglich trinken?',
-    'Was sind Zeichen von Eisenmangel?',
-    'Welche Lebensmittel stärken das Immunsystem?',
-    'Was tun bei anhaltenden Kopfschmerzen?',
-    'Wie erkenne ich Bluthochdruck?',
+  static const _quickQ = [
+    'Was bedeutet BMI 27?',
+    'Anzeichen von Eisenmangel?',
+    'Wie viel Wasser täglich?',
+    'Wann zum Arzt bei Kopfschmerzen?',
+    'Beste Lebensmittel fürs Herz?',
+    'Schlafmangel Folgen?',
   ];
 
   @override
   void initState() {
     super.initState();
     _checkApiKey();
-    _addWelcomeMessage();
+    _messages.add(ChatMessage(
+      isUser: false,
+      text:
+          '**Hallo! Ich bin dein KI-Arztassistent** 🩺\n\nIch nutze **Google Search** um aktuelle wissenschaftliche Erkenntnisse zu finden.\n\n**Ich kann helfen mit:**\n- 🔍 Symptom-Analyse & Deep Research\n- 💊 Medikamenten-Informationen\n- 🏥 Alle medizinischen Fragen\n- 📊 Laborwerte erklären\n- 🔬 Aktuelle Studien recherchieren\n\nStelle mir einfach deine Frage!',
+    ));
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _scrollController.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -48,68 +52,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() => _hasApiKey = has);
   }
 
-  void _addWelcomeMessage() {
-    _messages.add(ChatMessage(
-      text: '''Hallo! Ich bin dein persönlicher **KI-Arztassistent** powered by Google Gemini.
-
-Ich kann dir helfen bei:
-- 🔍 **Symptom-Analyse** – Erkläre deine Symptome
-- 💊 **Medikamenten-Info** – Wirkung, Nebenwirkungen, Wechselwirkungen
-- 🏥 **Gesundheitsfragen** – Von Ernährung bis Krankheiten
-- 📚 **Deep Research** – Tiefe medizinische Recherche zu jedem Thema
-- 🧬 **Laborwerte** – Erkläre deine Blutwerte
-
-Stelle mir einfach deine Frage!''',
-      isUser: false,
-    ));
-  }
-
-  Future<void> _sendMessage(String text) async {
+  Future<void> _send(String text) async {
     if (text.trim().isEmpty) return;
-    if (!_hasApiKey) {
-      _showNoKeyDialog();
-      return;
-    }
+    if (!_hasApiKey) { _showNoKey(); return; }
 
     _controller.clear();
-
     final userMsg = ChatMessage(text: text.trim(), isUser: true);
-    setState(() {
-      _messages.add(userMsg);
-      _isLoading = true;
-    });
-    _scrollToBottom();
+    setState(() { _messages.add(userMsg); _isLoading = true; });
+    _scrollDown();
 
-    // Nur die letzten 10 Nachrichten als Verlauf mitgeben (spart Tokens)
     final history = _messages.length > 1
-        ? _messages
-            .skip(1) // Begrüßungsnachricht überspringen
-            .take(_messages.length - 2)
-            .toList()
+        ? _messages.skip(1).take(_messages.length - 2).toList()
         : <ChatMessage>[];
 
     final response = await GeminiService.chat(
       text.trim(),
       history: history,
+      useSearch: true, // Google Search aktiv für aktuelle Informationen
     );
 
     setState(() {
       _isLoading = false;
       _messages.add(ChatMessage(
-        text: response.isSuccess
-            ? response.text!
-            : '❌ Fehler: ${response.error}',
+        text: response.isSuccess ? response.text! : '❌ ${response.error}',
         isUser: false,
+        isSearchResult: response.isSuccess && response.sources.isNotEmpty,
       ));
     });
-    _scrollToBottom();
+    _scrollDown();
   }
 
-  void _scrollToBottom() {
+  void _scrollDown() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -117,20 +94,23 @@ Stelle mir einfach deine Frage!''',
     });
   }
 
-  void _showNoKeyDialog() {
+  void _showNoKey() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('API-Key benötigt'),
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLarge)),
+        title: const Text('API-Key benötigt', style: AppTheme.headline3),
         content: const Text(
-          'Für den KI-Arztassistenten wird ein kostenloser '
-          'Google Gemini API-Key benötigt.\n\n'
-          'Komplett kostenlos, keine Kreditkarte nötig:\naistudio.google.com/app/apikey',
+          'Komplett kostenloser Google Gemini Key:\naistudio.google.com/app/apikey',
+          style: AppTheme.body,
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Abbrechen')),
+              child: const Text('Abbrechen',
+                  style: TextStyle(color: AppTheme.textSecondary))),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -139,9 +119,9 @@ Stelle mir einfach deine Frage!''',
                   .then((_) => _checkApiKey());
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5C6BC0)),
-            child: const Text('Jetzt einrichten',
-                style: TextStyle(color: Colors.white)),
+                backgroundColor: AppTheme.colorAI,
+                foregroundColor: Colors.white),
+            child: const Text('Einrichten'),
           ),
         ],
       ),
@@ -151,97 +131,114 @@ Stelle mir einfach deine Frage!''',
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        backgroundColor: AppTheme.bgCard,
+        title: Row(
           children: [
-            Text('KI-Arztassistent',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Text('Powered by Google Gemini (kostenlos)',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.normal)),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.colorAI.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.smart_toy_rounded,
+                  color: AppTheme.colorAI, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('KI-Arztassistent',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary)),
+                Row(
+                  children: [
+                    PulseDot(
+                        size: 6,
+                        color: _hasApiKey
+                            ? AppTheme.neonGreen
+                            : AppTheme.textMuted),
+                    const SizedBox(width: 4),
+                    Text(
+                      _hasApiKey
+                          ? 'Gemini 2.0 • Google Search'
+                          : 'Offline – Key einrichten',
+                      style: const TextStyle(
+                          fontSize: 10, color: AppTheme.textMuted),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ],
         ),
-        backgroundColor: const Color(0xFF5C6BC0),
-        foregroundColor: Colors.white,
-        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Chat löschen',
-            onPressed: () {
-              setState(() {
-                _messages.clear();
-                _addWelcomeMessage();
-              });
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ).then((_) => _checkApiKey()),
+            icon: const Icon(Icons.delete_outline,
+                color: AppTheme.textSecondary, size: 20),
+            onPressed: () => setState(() {
+              _messages.clear();
+              _messages.add(ChatMessage(
+                isUser: false,
+                text: '**Chat zurückgesetzt.** Stelle mir deine Frage!',
+              ));
+            }),
           ),
         ],
       ),
       body: Column(
         children: [
-          // API-Key Warnung
-          if (!_hasApiKey)
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              ).then((_) => _checkApiKey()),
-              child: Container(
-                width: double.infinity,
-                color: Colors.orange.shade100,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: const Row(
-                  children: [
-                    Icon(Icons.key, color: Colors.orange, size: 18),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Kein API-Key gesetzt. Tippe hier um ihn einzurichten (kostenlos).',
-                        style: TextStyle(color: Colors.orange, fontSize: 13),
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: Colors.orange),
-                  ],
-                ),
-              ),
-            ),
-
           // Nachrichten
           Expanded(
             child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(12),
+              controller: _scrollCtrl,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
               itemCount: _messages.length + (_isLoading ? 1 : 0),
-              itemBuilder: (ctx, index) {
-                if (index == _messages.length) {
-                  return const _TypingIndicator();
-                }
-                return _MessageBubble(message: _messages[index]);
+              itemBuilder: (ctx, i) {
+                if (i == _messages.length) return const _TypingBubble();
+                return _Bubble(message: _messages[i]);
               },
             ),
           ),
 
-          // Schnell-Fragen (nur wenn Chat leer/Willkommen)
+          // Quick-Fragen
           if (_messages.length <= 1)
-            _QuickQuestions(
-              questions: _quickQuestions,
-              onTap: _sendMessage,
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _quickQ.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (ctx, i) => GestureDetector(
+                  onTap: () => _send(_quickQ[i]),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.colorAI.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: AppTheme.colorAI.withOpacity(0.3)),
+                    ),
+                    child: Text(_quickQ[i],
+                        style: const TextStyle(
+                            color: AppTheme.colorAI,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ),
             ),
+          const SizedBox(height: 6),
 
           // Eingabe
-          _ChatInput(
+          _Input(
             controller: _controller,
             isLoading: _isLoading,
-            onSend: _sendMessage,
+            onSend: _send,
           ),
         ],
       ),
@@ -249,11 +246,9 @@ Stelle mir einfach deine Frage!''',
   }
 }
 
-// ── Widgets ─────────────────────────────────────────────────────
-
-class _MessageBubble extends StatelessWidget {
+class _Bubble extends StatelessWidget {
   final ChatMessage message;
-  const _MessageBubble({required this.message});
+  const _Bubble({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -267,14 +262,15 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: const Color(0xFF5C6BC0),
-              child: const Text('KI',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold)),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppTheme.colorAI.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.smart_toy_rounded,
+                  color: AppTheme.colorAI, size: 14),
             ),
             const SizedBox(width: 8),
           ],
@@ -283,71 +279,116 @@ class _MessageBubble extends StatelessWidget {
               onLongPress: () {
                 Clipboard.setData(ClipboardData(text: message.text));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Kopiert!')),
+                  SnackBar(
+                    content: const Text('Kopiert!'),
+                    backgroundColor: AppTheme.bgCard,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSmall)),
+                  ),
                 );
               },
               child: Container(
                 constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.78,
-                ),
+                    maxWidth: MediaQuery.of(context).size.width * 0.78),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: isUser
-                      ? const Color(0xFF5C6BC0)
-                      : Colors.white,
+                      ? AppTheme.colorAI
+                      : AppTheme.bgCard,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(18),
                     topRight: const Radius.circular(18),
                     bottomLeft: Radius.circular(isUser ? 18 : 4),
                     bottomRight: Radius.circular(isUser ? 4 : 18),
                   ),
+                  border: isUser
+                      ? null
+                      : Border.all(color: AppTheme.glassBorder),
                   boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
+                    if (!isUser)
+                      BoxShadow(
+                        color: AppTheme.colorAI.withOpacity(0.05),
+                        blurRadius: 10,
+                      ),
                   ],
                 ),
                 child: isUser
-                    ? Text(
-                        message.text,
+                    ? Text(message.text,
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 15),
-                      )
-                    : MarkdownBody(
-                        data: message.text,
-                        styleSheet: MarkdownStyleSheet(
-                          p: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1A1A2E),
-                              height: 1.5),
-                          h2: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF5C6BC0)),
-                          h3: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold),
-                          listBullet: const TextStyle(fontSize: 14),
-                          strong: const TextStyle(
-                              fontWeight: FontWeight.bold),
-                          code: const TextStyle(
-                              backgroundColor: Color(0xFFF0F0F0),
-                              fontFamily: 'monospace'),
-                        ),
+                            color: Colors.white, fontSize: 14, height: 1.4))
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (message.isSearchResult)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.search,
+                                      size: 12,
+                                      color: AppTheme.colorResearch),
+                                  const SizedBox(width: 4),
+                                  Text('Google Search aktiv',
+                                      style: AppTheme.caption.copyWith(
+                                          color: AppTheme.colorResearch)),
+                                ],
+                              ),
+                            ),
+                          MarkdownBody(
+                            data: message.text,
+                            styleSheet: MarkdownStyleSheet(
+                              p: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.textPrimary,
+                                  height: 1.5),
+                              h2: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.colorAI),
+                              h3: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.neonBlue),
+                              strong: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textPrimary),
+                              listBullet: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 14),
+                              code: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: AppTheme.neon,
+                                  fontSize: 13),
+                              blockquoteDecoration: BoxDecoration(
+                                color: AppTheme.colorAI.withOpacity(0.08),
+                                border: Border(
+                                  left: BorderSide(
+                                      color: AppTheme.colorAI, width: 3),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
               ),
             ),
           ),
           if (isUser) ...[
             const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.grey[200],
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppTheme.bgCard,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.glassBorder),
+              ),
               child: const Icon(Icons.person,
-                  color: Colors.grey, size: 18),
+                  color: AppTheme.textSecondary, size: 14),
             ),
           ],
         ],
@@ -356,8 +397,31 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-class _TypingIndicator extends StatelessWidget {
-  const _TypingIndicator();
+class _TypingBubble extends StatefulWidget {
+  const _TypingBubble();
+
+  @override
+  State<_TypingBubble> createState() => _TypingBubbleState();
+}
+
+class _TypingBubbleState extends State<_TypingBubble>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -365,39 +429,55 @@ class _TypingIndicator extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          const CircleAvatar(
-            radius: 16,
-            backgroundColor: Color(0xFF5C6BC0),
-            child: Text('KI',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold)),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppTheme.colorAI.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.smart_toy_rounded,
+                color: AppTheme.colorAI, size: 14),
           ),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              color: AppTheme.bgCard,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomRight: Radius.circular(18),
+                bottomLeft: Radius.circular(4),
+              ),
+              border: Border.all(color: AppTheme.glassBorder),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                _Dot(delay: 0),
-                const SizedBox(width: 4),
-                _Dot(delay: 200),
-                const SizedBox(width: 4),
-                _Dot(delay: 400),
-              ],
+              children: List.generate(
+                3,
+                (i) => AnimatedBuilder(
+                  animation: _ctrl,
+                  builder: (_, __) {
+                    final phase = (_ctrl.value * 3 - i).clamp(0.0, 1.0);
+                    final opacity = math_sin(phase * 3.14159).abs();
+                    return Padding(
+                      padding: EdgeInsets.only(right: i < 2 ? 4 : 0),
+                      child: Opacity(
+                        opacity: opacity.clamp(0.2, 1.0),
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppTheme.colorAI,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ],
@@ -406,103 +486,17 @@ class _TypingIndicator extends StatelessWidget {
   }
 }
 
-class _Dot extends StatefulWidget {
-  final int delay;
-  const _Dot({required this.delay});
-
-  @override
-  State<_Dot> createState() => _DotState();
+double math_sin(double x) {
+  // Approximation von sin für Animation
+  return (x < 1.5708) ? x * (1 - x * x / 6) : (3.14159 - x) * (1 - (3.14159 - x) * (3.14159 - x) / 6);
 }
 
-class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
-
-    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(_controller);
-
-    Future.delayed(Duration(milliseconds: widget.delay), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _animation,
-      child: Container(
-        width: 8,
-        height: 8,
-        decoration: const BoxDecoration(
-          color: Color(0xFF5C6BC0),
-          shape: BoxShape.circle,
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickQuestions extends StatelessWidget {
-  final List<String> questions;
-  final Function(String) onTap;
-
-  const _QuickQuestions(
-      {required this.questions, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 42,
-      margin: const EdgeInsets.only(bottom: 4),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: questions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (ctx, i) => GestureDetector(
-          onTap: () => onTap(questions[i]),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF5C6BC0).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: const Color(0xFF5C6BC0).withOpacity(0.3)),
-            ),
-            child: Text(
-              questions[i],
-              style: const TextStyle(
-                  color: Color(0xFF5C6BC0),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChatInput extends StatelessWidget {
+class _Input extends StatelessWidget {
   final TextEditingController controller;
   final bool isLoading;
   final Function(String) onSend;
 
-  const _ChatInput({
+  const _Input({
     required this.controller,
     required this.isLoading,
     required this.onSend,
@@ -512,20 +506,12 @@ class _ChatInput extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(
-        left: 12,
-        right: 12,
-        top: 8,
+        left: 12, right: 12, top: 8,
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
-          ),
-        ],
+        color: AppTheme.bgCard,
+        border: const Border(top: BorderSide(color: AppTheme.glassBorder)),
       ),
       child: Row(
         children: [
@@ -534,41 +520,47 @@ class _ChatInput extends StatelessWidget {
               controller: controller,
               minLines: 1,
               maxLines: 4,
-              textInputAction: TextInputAction.newline,
-              decoration: InputDecoration(
-                hintText: 'Stelle eine medizinische Frage...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                filled: true,
-                fillColor: Colors.grey[100],
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
+              style: AppTheme.body.copyWith(color: AppTheme.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'Medizinische Frage stellen...',
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: isLoading
-                  ? Colors.grey[300]
-                  : const Color(0xFF5C6BC0),
               shape: BoxShape.circle,
+              color: isLoading
+                  ? AppTheme.textMuted.withOpacity(0.2)
+                  : AppTheme.colorAI,
+              boxShadow: isLoading
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: AppTheme.colorAI.withOpacity(0.3),
+                        blurRadius: 10,
+                      ),
+                    ],
             ),
             child: IconButton(
               icon: isLoading
                   ? const SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2),
+                          color: AppTheme.textSecondary, strokeWidth: 2),
                     )
-                  : const Icon(Icons.send, color: Colors.white),
-              onPressed: isLoading
-                  ? null
-                  : () => onSend(controller.text),
+                  : const Icon(Icons.send_rounded,
+                      color: Colors.white, size: 20),
+              onPressed: isLoading ? null : () => onSend(controller.text),
             ),
           ),
         ],

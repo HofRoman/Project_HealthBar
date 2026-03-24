@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/gemini_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
 import 'settings_screen.dart';
 
 class FaceScanScreen extends StatefulWidget {
@@ -14,99 +14,97 @@ class FaceScanScreen extends StatefulWidget {
   State<FaceScanScreen> createState() => _FaceScanScreenState();
 }
 
-class _FaceScanScreenState extends State<FaceScanScreen> {
+class _FaceScanScreenState extends State<FaceScanScreen>
+    with SingleTickerProviderStateMixin {
   final _picker = ImagePicker();
-
   Uint8List? _imageBytes;
-  String? _imagePath;
   bool _isAnalyzing = false;
-  String? _analysisResult;
-  String? _errorMessage;
+  String? _result;
+  String? _error;
   bool _hasApiKey = false;
+  late AnimationController _scanCtrl;
+  late Animation<double> _scanAnim;
+
+  // Was die KI analysiert
+  static const _checks = [
+    ('👁️', 'Augenlider', 'Schwellung, Rötung, Ptosis'),
+    ('🎨', 'Hautfarbe', 'Blässe, Gelbsucht, Rötung'),
+    ('⚡', 'Asymmetrie', 'Schlaganfall-Früherkennung'),
+    ('💧', 'Ödeme', 'Gesichtsschwellung'),
+    ('🔍', 'Augenweiß', 'Ikterus-Zeichen'),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _checkApiKey();
+    _scanCtrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 2))
+      ..repeat();
+    _scanAnim = Tween<double>(begin: 0, end: 1).animate(_scanCtrl);
+    _check();
   }
 
-  Future<void> _checkApiKey() async {
+  @override
+  void dispose() { _scanCtrl.dispose(); super.dispose(); }
+
+  Future<void> _check() async {
     final has = await GeminiService.hasApiKey();
     setState(() => _hasApiKey = has);
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final picked = await _picker.pickImage(
-        source: source,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-      if (picked == null) return;
-
-      final bytes = await picked.readAsBytes();
-      setState(() {
-        _imageBytes = bytes;
-        _imagePath = picked.path;
-        _analysisResult = null;
-        _errorMessage = null;
-      });
-    } catch (e) {
-      setState(() => _errorMessage = 'Fehler beim Laden des Bildes: $e');
-    }
+  Future<void> _pick(ImageSource src) async {
+    final picked = await _picker.pickImage(
+        source: src, maxWidth: 1024, maxHeight: 1024, imageQuality: 85);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _imageBytes = bytes;
+      _result = null;
+      _error = null;
+    });
   }
 
   Future<void> _analyze() async {
     if (_imageBytes == null) return;
     if (!_hasApiKey) {
-      _showNoKeyDialog();
+      _showNoKey();
       return;
     }
-
-    setState(() {
-      _isAnalyzing = true;
-      _analysisResult = null;
-      _errorMessage = null;
-    });
-
-    final response = await GeminiService.analyzeFace(_imageBytes!);
-
+    setState(() { _isAnalyzing = true; _result = null; _error = null; });
+    final r = await GeminiService.analyzeFace(_imageBytes!);
     setState(() {
       _isAnalyzing = false;
-      if (response.isSuccess) {
-        _analysisResult = response.text;
-      } else {
-        _errorMessage = response.error;
-      }
+      if (r.isSuccess) _result = r.text; else _error = r.error;
     });
   }
 
-  void _showNoKeyDialog() {
+  void _showNoKey() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('API-Key benötigt'),
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLarge)),
+        title: const Text('API-Key benötigt', style: AppTheme.headline3),
         content: const Text(
-          'Für den KI-Gesichtsscan wird ein kostenloser Google Gemini API-Key benötigt.\n\n'
-          'Kostenlos holen unter:\naistudio.google.com/app/apikey',
-        ),
+            'Gemini Vision API Key benötigt (kostenlos).',
+            style: AppTheme.body),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Abbrechen')),
+              child: const Text('Abbrechen',
+                  style: TextStyle(color: AppTheme.textSecondary))),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              ).then((_) => _checkApiKey());
+              Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()))
+                  .then((_) => _check());
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00897B)),
-            child: const Text('Einstellungen',
-                style: TextStyle(color: Colors.white)),
+                backgroundColor: AppTheme.colorFace,
+                foregroundColor: Colors.white),
+            child: const Text('Einrichten'),
           ),
         ],
       ),
@@ -116,359 +114,338 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        title: const Text('KI-Gesichtsscan'),
-        backgroundColor: const Color(0xFF00897B),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ).then((_) => _checkApiKey()),
-          ),
-        ],
+        backgroundColor: AppTheme.bgCard,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.colorFace.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.face_retouching_natural,
+                  color: AppTheme.colorFace, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('KI-Gesichtsscan'),
+                Text('Gemini Vision • Medizinische Analyse',
+                    style: AppTheme.caption),
+              ],
+            ),
+          ],
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
         child: Column(
           children: [
-            // Erklärungskarte
-            _InfoBanner(),
-            const SizedBox(height: 16),
+            // Was die KI analysiert
+            GlassCard(
+              glowColor: AppTheme.colorFace,
+              glowIntensity: 0.1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      NeonBadge(label: 'KI VISION', color: AppTheme.colorFace),
+                      const SizedBox(width: 8),
+                      const Text('Analysiert wird:', style: AppTheme.bodyBold),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _checks
+                        .map((c) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppTheme.colorFace.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: AppTheme.colorFace.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(c.$1,
+                                      style: const TextStyle(fontSize: 14)),
+                                  const SizedBox(width: 5),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(c.$2,
+                                          style: const TextStyle(
+                                              color: AppTheme.textPrimary,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700)),
+                                      Text(c.$3,
+                                          style: AppTheme.caption
+                                              .copyWith(fontSize: 10)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
 
             // Bild-Vorschau
-            _ImagePreview(
-              imageBytes: _imageBytes,
-              imagePath: _imagePath,
+            Container(
+              height: 260,
+              decoration: BoxDecoration(
+                color: AppTheme.bgCard,
+                borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                border: Border.all(
+                  color: _isAnalyzing
+                      ? AppTheme.colorFace
+                      : AppTheme.glassBorder,
+                ),
+                boxShadow: _isAnalyzing
+                    ? AppTheme.glow(AppTheme.colorFace, intensity: 0.3)
+                    : null,
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (_imageBytes != null)
+                    Image.memory(_imageBytes!, fit: BoxFit.cover)
+                  else
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.face,
+                            size: 72,
+                            color: AppTheme.colorFace.withOpacity(0.3)),
+                        const SizedBox(height: 12),
+                        const Text('Foto aufnehmen oder auswählen',
+                            style: AppTheme.bodyBold),
+                        const SizedBox(height: 4),
+                        const Text(
+                            'KI analysiert sichtbare Gesundheitszeichen',
+                            style: AppTheme.caption),
+                      ],
+                    ),
+                  // Scan-Linie
+                  if (_isAnalyzing)
+                    AnimatedBuilder(
+                      animation: _scanAnim,
+                      builder: (_, __) => Positioned(
+                        top: 260 * _scanAnim.value,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          height: 2,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                AppTheme.colorFace,
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Aufnahme-Buttons
             Row(
               children: [
                 Expanded(
-                  child: _ActionButton(
-                    label: 'Kamera',
-                    icon: Icons.camera_alt,
-                    color: const Color(0xFF00897B),
-                    onTap: () => _pickImage(ImageSource.camera),
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pick(ImageSource.camera),
+                    icon: const Icon(Icons.camera_alt, size: 18),
+                    label: const Text('Kamera'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.colorFace,
+                      side: BorderSide(
+                          color: AppTheme.colorFace.withOpacity(0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusSmall)),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: _ActionButton(
-                    label: 'Galerie',
-                    icon: Icons.photo_library,
-                    color: const Color(0xFF0288D1),
-                    onTap: () => _pickImage(ImageSource.gallery),
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pick(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library, size: 18),
+                    label: const Text('Galerie'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.neonBlue,
+                      side: BorderSide(
+                          color: AppTheme.neonBlue.withOpacity(0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusSmall)),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // Analyse-Button
-            if (_imageBytes != null)
+            if (_imageBytes != null) ...[
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: _isAnalyzing ? null : _analyze,
                   icon: _isAnalyzing
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 18, height: 18,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Icon(Icons.biotech),
-                  label: Text(
-                    _isAnalyzing
-                        ? 'KI analysiert...'
-                        : 'KI-Analyse starten',
-                  ),
+                              color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.biotech, size: 18),
+                  label: Text(_isAnalyzing
+                      ? 'Vision KI analysiert...'
+                      : 'KI-Analyse starten'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00897B),
+                    backgroundColor: AppTheme.colorFace,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    textStyle: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusMid)),
                   ),
                 ),
               ),
+            ],
 
-            // Ladeindikator
+            // Analysiert-Indikator
             if (_isAnalyzing) ...[
-              const SizedBox(height: 24),
-              const _AnalyzingIndicator(),
+              const SizedBox(height: 16),
+              GlassCard(
+                glowColor: AppTheme.colorFace,
+                glowIntensity: 0.3,
+                child: Column(
+                  children: [
+                    const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.colorFace)),
+                    const SizedBox(height: 14),
+                    const Text('Gemini Vision analysiert...',
+                        style: AppTheme.bodyBold),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Augenlider • Hautfarbe • Asymmetrie\nRötungen • Ödeme • Skleren',
+                      style: AppTheme.caption,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
             ],
 
             // Fehler
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 16),
-              _ErrorCard(message: _errorMessage!),
-            ],
-
-            // KI-Ergebnis
-            if (_analysisResult != null) ...[
-              const SizedBox(height: 16),
-              _ResultCard(result: _analysisResult!),
-            ],
-
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Widgets ─────────────────────────────────────────────────────
-
-class _InfoBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF00897B).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF00897B).withOpacity(0.3)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.info_outline, color: Color(0xFF00897B), size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Die KI analysiert dein Gesicht auf sichtbare Gesundheitszeichen: '
-              'Augenschwellungen, Hautfarbe, Asymmetrie und mehr.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF004D40)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ImagePreview extends StatelessWidget {
-  final Uint8List? imageBytes;
-  final String? imagePath;
-
-  const _ImagePreview({this.imageBytes, this.imagePath});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 260,
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: imageBytes != null
-          ? Image.memory(
-              imageBytes!,
-              fit: BoxFit.cover,
-              width: double.infinity,
-            )
-          : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.face, size: 80, color: Colors.grey[300]),
-                const SizedBox(height: 12),
-                Text(
-                  'Kein Bild ausgewählt',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Mache ein Foto oder wähle eines aus der Galerie',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color.withOpacity(0.1),
-        foregroundColor: color,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color.withOpacity(0.4)),
-        ),
-        textStyle:
-            const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-      ),
-    );
-  }
-}
-
-class _AnalyzingIndicator extends StatelessWidget {
-  const _AnalyzingIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00897B))),
-            const SizedBox(height: 16),
-            const Text('KI analysiert dein Gesicht...',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            Text(
-              'Gemini Vision prüft:\nAugenlider • Hautfarbe • Asymmetrie • Rötungen',
-              style: TextStyle(color: Colors.grey[500], fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorCard extends StatelessWidget {
-  final String message;
-  const _ErrorCard({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFFFFEBEE),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.error_outline, color: Color(0xFFD32F2F)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(color: Color(0xFFB71C1C)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ResultCard extends StatelessWidget {
-  final String result;
-  const _ResultCard({required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00897B).withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.biotech,
-                      color: Color(0xFF00897B), size: 20),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'KI-Analyse Ergebnis',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const Divider(height: 20),
-            MarkdownBody(
-              data: result,
-              styleSheet: MarkdownStyleSheet(
-                h2: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF00897B)),
-                p: const TextStyle(fontSize: 14, height: 1.5),
-                listBullet: const TextStyle(fontSize: 14),
-                strong: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.local_hospital,
-                      color: Colors.orange, size: 18),
-                  SizedBox(width: 8),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              GlassCard(
+                glowColor: AppTheme.colorFood,
+                child: Row(children: [
+                  const Icon(Icons.error_outline, color: AppTheme.colorFood),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      'Diese KI-Analyse ersetzt keine ärztliche Untersuchung.',
-                      style: TextStyle(
-                          color: Colors.orange,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
+                      child: Text(_error!,
+                          style: const TextStyle(color: AppTheme.colorFood))),
+                ]),
               ),
-            ),
+            ],
+
+            // Ergebnis
+            if (_result != null) ...[
+              const SizedBox(height: 16),
+              GlassCard(
+                glowColor: AppTheme.colorFace,
+                glowIntensity: 0.15,
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.colorFace.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.biotech,
+                              color: AppTheme.colorFace, size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text('Analyse-Ergebnis',
+                            style: AppTheme.headline3),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    const NeonDivider(color: AppTheme.colorFace),
+                    const SizedBox(height: 14),
+                    MarkdownBody(
+                      data: _result!,
+                      styleSheet: MarkdownStyleSheet(
+                        h2: AppTheme.headline3
+                            .copyWith(color: AppTheme.colorFace),
+                        h3: AppTheme.bodyBold
+                            .copyWith(color: AppTheme.neonBlue),
+                        p: AppTheme.body.copyWith(
+                            color: AppTheme.textPrimary, height: 1.6),
+                        strong: AppTheme.bodyBold,
+                        listBullet: AppTheme.body
+                            .copyWith(color: AppTheme.textPrimary),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.colorActivity.withOpacity(0.1),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSmall),
+                        border: Border.all(
+                            color:
+                                AppTheme.colorActivity.withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.local_hospital,
+                              color: AppTheme.colorActivity, size: 16),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '⚕️ Diese KI-Analyse ersetzt keine ärztliche Untersuchung.',
+                              style: TextStyle(
+                                  color: AppTheme.colorActivity,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

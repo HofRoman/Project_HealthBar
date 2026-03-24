@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/database_helper.dart';
 import '../models/bmi_entry.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
 
 class BmiScreen extends StatefulWidget {
   const BmiScreen({super.key});
@@ -12,243 +14,192 @@ class BmiScreen extends StatefulWidget {
 
 class _BmiScreenState extends State<BmiScreen> {
   final _db = DatabaseHelper();
-  final _weightController = TextEditingController();
-  final _heightController = TextEditingController();
+  final _weightCtrl = TextEditingController();
+  final _heightCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-
-  double? _calculatedBmi;
+  double? _calcBmi;
   List<BmiEntry> _history = [];
 
   @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-  }
+  void initState() { super.initState(); _load(); }
 
   @override
-  void dispose() {
-    _weightController.dispose();
-    _heightController.dispose();
-    super.dispose();
-  }
+  void dispose() { _weightCtrl.dispose(); _heightCtrl.dispose(); super.dispose(); }
 
-  Future<void> _loadHistory() async {
+  Future<void> _load() async {
     final data = await _db.getBmiEntries();
-    setState(() {
-      _history = data.map(BmiEntry.fromMap).toList();
-    });
+    setState(() => _history = data.map(BmiEntry.fromMap).toList());
   }
 
-  Future<void> _calculate() async {
+  Future<void> _calc() async {
     if (!_formKey.currentState!.validate()) return;
-
-    final weight = double.parse(_weightController.text.replaceAll(',', '.'));
-    final height = double.parse(_heightController.text.replaceAll(',', '.'));
-    final bmi = BmiEntry.calculate(weight, height);
-
-    final entry = BmiEntry(
-      weight: weight,
-      height: height,
-      bmi: bmi,
-      date: DateTime.now(),
-    );
-
-    await _db.insertBmi(entry.toMap());
-    await _loadHistory();
-
-    setState(() => _calculatedBmi = bmi);
+    final w = double.parse(_weightCtrl.text.replaceAll(',', '.'));
+    final h = double.parse(_heightCtrl.text.replaceAll(',', '.'));
+    final bmi = BmiEntry.calculate(w, h);
+    await _db.insertBmi(BmiEntry(weight: w, height: h, bmi: bmi, date: DateTime.now()).toMap());
+    await _load();
+    setState(() => _calcBmi = bmi);
   }
 
-  Color _bmiColor(double bmi) {
-    if (bmi < 18.5) return const Color(0xFFFF9800);
-    if (bmi < 25.0) return const Color(0xFF4CAF50);
-    if (bmi < 30.0) return const Color(0xFFFF9800);
-    return const Color(0xFFF44336);
+  Color _color(double b) {
+    if (b < 18.5) return AppTheme.neonBlue;
+    if (b < 25)   return AppTheme.neonGreen;
+    if (b < 30)   return const Color(0xFFFFB300);
+    return AppTheme.colorFood;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        title: const Text('BMI Rechner'),
-        backgroundColor: const Color(0xFF2E7D5B),
-        foregroundColor: Colors.white,
-        elevation: 0,
+        backgroundColor: AppTheme.bgCard,
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.colorBmi.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.monitor_weight,
+                color: AppTheme.colorBmi, size: 18),
+          ),
+          const SizedBox(width: 10),
+          const Text('BMI Rechner'),
+        ]),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Eingabe-Karte
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+        child: Column(children: [
+          // Eingabe
+          GlassCard(
+            glowColor: AppTheme.colorBmi,
+            glowIntensity: 0.1,
+            child: Form(
+              key: _formKey,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Deine Körperwerte', style: AppTheme.bodyBold),
+                const SizedBox(height: 14),
+                _field(_weightCtrl, 'Gewicht (kg)', 'z.B. 70.5', Icons.monitor_weight),
+                const SizedBox(height: 12),
+                _field(_heightCtrl, 'Körpergröße (cm)', 'z.B. 175', Icons.height),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _calc,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.colorBmi,
+                      foregroundColor: AppTheme.bg,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMid)),
+                    ),
+                    child: const Text('BMI Berechnen',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+
+          // Ergebnis
+          if (_calcBmi != null) ...[
+            const SizedBox(height: 14),
+            GlassCard(
+              glowColor: _color(_calcBmi!),
+              glowIntensity: 0.3,
+              child: Column(children: [
+                Text('Dein BMI', style: AppTheme.caption),
+                const SizedBox(height: 6),
+                Text(
+                  _calcBmi!.toStringAsFixed(1),
+                  style: TextStyle(
+                      color: _color(_calcBmi!),
+                      fontSize: 64,
+                      fontWeight: FontWeight.w900),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _color(_calcBmi!).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: _color(_calcBmi!).withOpacity(0.4)),
+                  ),
+                  child: Text(
+                    BmiEntry(weight: 0, height: 0, bmi: _calcBmi!, date: DateTime.now()).category,
+                    style: TextStyle(
+                        color: _color(_calcBmi!),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _BmiScale(bmi: _calcBmi!),
+              ]),
+            ),
+          ],
+
+          // Verlauf
+          if (_history.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('Verlauf', style: AppTheme.headline3),
+            const SizedBox(height: 10),
+            ..._history.take(10).map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GlassCard(
+                glowColor: _color(e.bmi),
+                glowIntensity: 0.05,
+                child: Row(children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _color(e.bmi).withOpacity(0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _color(e.bmi).withOpacity(0.4)),
+                    ),
+                    child: Center(
+                      child: Text(e.bmi.toStringAsFixed(1),
+                          style: TextStyle(
+                              color: _color(e.bmi),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Deine Daten eingeben',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
-                      _buildTextField(
-                        controller: _weightController,
-                        label: 'Gewicht (kg)',
-                        hint: 'z.B. 70.5',
-                        icon: Icons.monitor_weight,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildTextField(
-                        controller: _heightController,
-                        label: 'Körpergröße (cm)',
-                        hint: 'z.B. 175',
-                        icon: Icons.height,
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _calculate,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2E7D5B),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text('BMI Berechnen',
-                              style: TextStyle(fontSize: 16)),
-                        ),
-                      ),
+                      Text(e.category, style: AppTheme.bodyBold),
+                      Text('${e.weight} kg • ${e.height} cm', style: AppTheme.caption),
                     ],
-                  ),
-                ),
-              ),
-            ),
-            // Ergebnis
-            if (_calculatedBmi != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      Text('Dein BMI',
-                          style: TextStyle(
-                              color: Colors.grey[600], fontSize: 14)),
-                      const SizedBox(height: 8),
-                      Text(
-                        _calculatedBmi!.toStringAsFixed(1),
-                        style: TextStyle(
-                          fontSize: 56,
-                          fontWeight: FontWeight.bold,
-                          color: _bmiColor(_calculatedBmi!),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 6),
-                        decoration: BoxDecoration(
-                          color:
-                              _bmiColor(_calculatedBmi!).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          BmiEntry(
-                                  weight: 0,
-                                  height: 0,
-                                  bmi: _calculatedBmi!,
-                                  date: DateTime.now())
-                              .category,
-                          style: TextStyle(
-                            color: _bmiColor(_calculatedBmi!),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _BmiScale(bmi: _calculatedBmi!),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            // Verlauf
-            if (_history.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Verlauf',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 8),
-              ..._history.take(10).map((e) => Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            _bmiColor(e.bmi).withOpacity(0.15),
-                        child: Text(
-                          e.bmi.toStringAsFixed(1),
-                          style: TextStyle(
-                              color: _bmiColor(e.bmi),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12),
-                        ),
-                      ),
-                      title: Text(e.category,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600)),
-                      subtitle: Text(
-                          '${e.weight} kg • ${e.height} cm'),
-                      trailing: Text(
-                        DateFormat('dd.MM.yy').format(e.date),
-                        style: TextStyle(
-                            color: Colors.grey[500], fontSize: 12),
-                      ),
-                    ),
                   )),
-            ],
+                  Text(DateFormat('dd.MM.yy').format(e.date),
+                      style: AppTheme.caption),
+                ]),
+              ),
+            )),
           ],
-        ),
+        ]),
       ),
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-  }) {
+  Widget _field(TextEditingController c, String label, String hint, IconData icon) {
     return TextFormField(
-      controller: controller,
+      controller: c,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: AppTheme.body.copyWith(color: AppTheme.textPrimary),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        prefixIcon: Icon(icon, color: const Color(0xFF2E7D5B)),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: Color(0xFF2E7D5B), width: 2),
-        ),
+        prefixIcon: Icon(icon, color: AppTheme.colorBmi, size: 18),
       ),
-      validator: (val) {
-        if (val == null || val.isEmpty) return 'Bitte eingeben';
-        final n = double.tryParse(val.replaceAll(',', '.'));
+      validator: (v) {
+        if (v == null || v.isEmpty) return 'Bitte eingeben';
+        final n = double.tryParse(v.replaceAll(',', '.'));
         if (n == null || n <= 0) return 'Ungültige Zahl';
         return null;
       },
@@ -262,40 +213,30 @@ class _BmiScale extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            _ScaleSegment('< 18.5\nUntergewicht', const Color(0xFF2196F3), 1),
-            _ScaleSegment('18.5–24.9\nNormal', const Color(0xFF4CAF50), 1),
-            _ScaleSegment('25–29.9\nÜbergewicht', const Color(0xFFFF9800), 1),
-            _ScaleSegment('≥ 30\nAdiposi.', const Color(0xFFF44336), 1),
-          ],
+    const segments = [
+      ('< 18.5\nUntergewicht', AppTheme.neonBlue),
+      ('18.5–24.9\nNormal', AppTheme.neonGreen),
+      ('25–29.9\nÜbergewicht', Color(0xFFFFB300)),
+      ('≥ 30\nAdiposi.', AppTheme.colorFood),
+    ];
+    return Column(children: [
+      const NeonDivider(),
+      const SizedBox(height: 10),
+      Row(children: segments.map((s) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: s.$2.withOpacity(0.12),
+            border: Border.all(color: s.$2.withOpacity(0.3)),
+          ),
+          child: Text(s.$1,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: s.$2,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700)),
         ),
-      ],
-    );
-  }
-}
-
-class _ScaleSegment extends StatelessWidget {
-  final String label;
-  final Color color;
-  final int flex;
-  const _ScaleSegment(this.label, this.color, this.flex);
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        decoration: BoxDecoration(color: color.withOpacity(0.2)),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
+      )).toList()),
+    ]);
   }
 }

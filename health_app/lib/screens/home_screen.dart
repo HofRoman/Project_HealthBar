@@ -1,16 +1,13 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/database_helper.dart';
 import '../services/gemini_service.dart';
-import 'bmi_screen.dart';
-import 'water_screen.dart';
-import 'activity_screen.dart';
-import 'sleep_screen.dart';
-import 'nutrition_screen.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
 import 'ai_chat_screen.dart';
 import 'face_scan_screen.dart';
-import 'symptom_checker_screen.dart';
-import 'health_score_screen.dart';
+import 'research_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,397 +17,236 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final _db = DatabaseHelper();
 
-  int _waterToday = 0;
-  int _caloriesToday = 0;
-  int _stepsToday = 0;
-  double? _lastBmi;
-  double _sleepLast = 0;
+  int _waterMl = 0;
+  int _calories = 0;
+  int _steps = 0;
+  double? _bmi;
+  double _sleep = 0;
+  int _actMin = 0;
   bool _hasApiKey = false;
+
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
-    _loadDashboard();
-    _checkApiKey();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.8, end: 1.2)
+        .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    _load();
   }
 
-  Future<void> _checkApiKey() async {
-    final has = await GeminiService.hasApiKey();
-    setState(() => _hasApiKey = has);
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadDashboard() async {
+  Future<void> _load() async {
     final water = await _db.getWaterToday();
-    final activities = await _db.getActivitiesToday();
-    final bmiEntries = await _db.getBmiEntries();
-    final sleepEntries = await _db.getSleepEntries();
+    final acts = await _db.getActivitiesToday();
+    final bmis = await _db.getBmiEntries();
+    final sleeps = await _db.getSleepEntries();
     final nutrition = await _db.getNutritionToday();
-
-    final totalWater =
-        water.fold(0, (sum, e) => sum + (e['amount_ml'] as int));
-    final totalCal =
-        activities.fold(0, (sum, e) => sum + (e['calories_burned'] as int));
-    final totalSteps =
-        activities.fold(0, (sum, e) => sum + (e['steps'] as int));
-    final totalCalFood =
-        nutrition.fold(0, (sum, e) => sum + (e['calories'] as int));
+    final has = await GeminiService.hasApiKey();
 
     setState(() {
-      _waterToday = totalWater;
-      _caloriesToday = totalCal + totalCalFood;
-      _stepsToday = totalSteps;
-      _lastBmi = bmiEntries.isNotEmpty
-          ? bmiEntries.first['bmi'] as double
-          : null;
-      _sleepLast = sleepEntries.isNotEmpty
-          ? sleepEntries.first['duration_hours'] as double
+      _waterMl = water.fold(0, (s, e) => s + (e['amount_ml'] as int));
+      _calories = acts.fold(0, (s, e) => s + (e['calories_burned'] as int)) +
+          nutrition.fold(0, (s, e) => s + (e['calories'] as int));
+      _steps = acts.fold(0, (s, e) => s + (e['steps'] as int));
+      _bmi = bmis.isNotEmpty ? bmis.first['bmi'] as double : null;
+      _sleep = sleeps.isNotEmpty
+          ? sleeps.first['duration_hours'] as double
           : 0;
+      _actMin = acts.fold(0, (s, e) => s + (e['duration_minutes'] as int));
+      _hasApiKey = has;
     });
+  }
+
+  void _go(Widget screen) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, a, __) => screen,
+        transitionsBuilder: (_, a, __, child) => FadeTransition(
+          opacity: a,
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 250),
+      ),
+    ).then((_) => _load());
+  }
+
+  // Gesundheits-Score lokal berechnen (für Anzeige ohne API)
+  int get _localScore {
+    int score = 0;
+    if (_waterMl >= 2500) score += 25;
+    else score += ((_waterMl / 2500) * 25).round();
+    if (_sleep >= 7 && _sleep <= 9) score += 25;
+    else if (_sleep > 0) score += ((_sleep.clamp(0, 9) / 9) * 20).round();
+    if (_actMin >= 30) score += 25;
+    else score += ((_actMin / 30) * 25).round();
+    if (_bmi != null) {
+      if (_bmi! >= 18.5 && _bmi! < 25) score += 25;
+      else if (_bmi! >= 17 && _bmi! < 30) score += 15;
+      else score += 5;
+    }
+    return score.clamp(0, 100);
   }
 
   @override
   Widget build(BuildContext context) {
-    final today = DateFormat('EEEE, d. MMMM yyyy', 'de_DE').format(DateTime.now());
+    final now = DateTime.now();
+    final greeting = now.hour < 12
+        ? 'Guten Morgen'
+        : now.hour < 17
+            ? 'Guten Tag'
+            : 'Guten Abend';
+
+    final score = _localScore;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.bg,
       body: RefreshIndicator(
-        onRefresh: () async {
-          await _loadDashboard();
-          await _checkApiKey();
-        },
+        onRefresh: _load,
+        color: AppTheme.neon,
+        backgroundColor: AppTheme.bgCard,
         child: CustomScrollView(
           slivers: [
-            // ── App Bar ──────────────────────────────────────
-            SliverAppBar(
-              expandedHeight: 170,
-              floating: false,
-              pinned: true,
-              backgroundColor: const Color(0xFF1B3A4B),
-              actions: [
-                IconButton(
-                  icon: Icon(
-                    _hasApiKey ? Icons.smart_toy : Icons.smart_toy_outlined,
-                    color: _hasApiKey ? const Color(0xFF69F0AE) : Colors.white54,
-                  ),
-                  tooltip: _hasApiKey ? 'KI aktiv' : 'KI einrichten',
-                  onPressed: () => _navigate(const SettingsScreen()),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings, color: Colors.white),
-                  onPressed: () => _navigate(const SettingsScreen()),
-                ),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                title: const Text(
-                  'HealthBar',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                  ),
-                ),
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF1B3A4B), Color(0xFF0D2333)],
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      // Deko-Kreise
-                      Positioned(
-                        right: -30,
-                        top: -30,
-                        child: Container(
-                          width: 160,
-                          height: 160,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.04),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 40,
-                        bottom: 10,
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.03),
-                          ),
-                        ),
-                      ),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16, bottom: 48),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  today,
-                                  style: const TextStyle(
-                                      color: Colors.white60, fontSize: 12),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: _hasApiKey
-                                            ? const Color(0xFF69F0AE)
-                                                .withOpacity(0.2)
-                                            : Colors.white12,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: _hasApiKey
-                                              ? const Color(0xFF69F0AE)
-                                              : Colors.white24,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.circle,
-                                            size: 8,
-                                            color: _hasApiKey
-                                                ? const Color(0xFF69F0AE)
-                                                : Colors.white38,
-                                          ),
-                                          const SizedBox(width: 5),
-                                          Text(
-                                            _hasApiKey
-                                                ? 'KI aktiv'
-                                                : 'KI inaktiv',
-                                            style: TextStyle(
-                                              color: _hasApiKey
-                                                  ? const Color(0xFF69F0AE)
-                                                  : Colors.white54,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+            // ── Hero Header ──────────────────────────────────
+            SliverToBoxAdapter(
+              child: _HeroHeader(
+                greeting: greeting,
+                score: score,
+                hasApiKey: _hasApiKey,
+                pulseAnim: _pulseAnim,
+                onAiTap: () => _go(const AiChatScreen()),
+                onSettingsTap: () => _go(const SettingsScreen()),
               ),
             ),
 
-            // ── Content ─────────────────────────────────────
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  // KI-Banner (wenn kein Key)
-                  if (!_hasApiKey)
-                    GestureDetector(
-                      onTap: () => _navigate(const SettingsScreen()),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF5C6BC0), Color(0xFF3949AB)],
+                  // ── Vitaldaten-Ring ─────────────────────────
+                  _VitalRingRow(
+                    waterMl: _waterMl,
+                    calories: _calories,
+                    steps: _steps,
+                    sleep: _sleep,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── KI Schnellzugriff ────────────────────────
+                  _SectionHeader(
+                    label: 'KI-POWERED',
+                    title: 'Schnellzugriff',
+                    color: AppTheme.colorAI,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: _QuickAiCard(
+                          title: 'KI-Arzt fragen',
+                          subtitle: 'Stelle jede medizinische Frage',
+                          icon: Icons.smart_toy_rounded,
+                          color: AppTheme.colorAI,
+                          onTap: () => _go(const AiChatScreen()),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: _QuickAiCard(
+                          title: 'Gesicht\nscannen',
+                          subtitle: 'KI-Analyse',
+                          icon: Icons.face_retouching_natural,
+                          color: AppTheme.colorFace,
+                          onTap: () => _go(const FaceScanScreen()),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  GlassCard(
+                    glowColor: AppTheme.colorResearch,
+                    glowIntensity: 0.2,
+                    onTap: () => _go(const ResearchScreen()),
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.colorResearch.withOpacity(0.15),
+                        AppTheme.colorResearch.withOpacity(0.04),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.colorResearch.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          borderRadius: BorderRadius.circular(14),
+                          child: const Icon(Icons.science_rounded,
+                              color: AppTheme.colorResearch, size: 22),
                         ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.smart_toy,
-                                color: Colors.white, size: 28),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'KI-Arztassistent aktivieren',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15),
-                                  ),
-                                  Text(
-                                    'Kostenloser Gemini API-Key einrichten',
-                                    style: TextStyle(
-                                        color: Colors.white70, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.arrow_forward_ios,
-                                color: Colors.white, size: 16),
-                          ],
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Medizin Deep Research',
+                                  style: AppTheme.bodyBold),
+                              Text(
+                                  'KI sucht aktiv nach aktuellen Studien & Leitlinien',
+                                  style: AppTheme.caption),
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-
-                  // ── Quick Stats ─────────────────────────────
-                  const Text(
-                    'Heute',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A2E),
+                        NeonBadge(
+                            label: 'GOOGLE\nSEARCH',
+                            color: AppTheme.colorResearch),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.chevron_right,
+                            color: AppTheme.colorResearch),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.4,
-                    children: [
-                      _StatCard(
-                        title: 'Wasser',
-                        value: '${(_waterToday / 1000).toStringAsFixed(1)} L',
-                        subtitle: 'Ziel: 2.5 L',
-                        icon: Icons.water_drop,
-                        color: const Color(0xFF2196F3),
-                        progress: (_waterToday / 2500).clamp(0.0, 1.0),
-                      ),
-                      _StatCard(
-                        title: 'Kalorien',
-                        value: '$_caloriesToday kcal',
-                        subtitle: 'Verbrannt + Gegessen',
-                        icon: Icons.local_fire_department,
-                        color: const Color(0xFFFF6B35),
-                        progress: (_caloriesToday / 2000).clamp(0.0, 1.0),
-                      ),
-                      _StatCard(
-                        title: 'Schritte',
-                        value: NumberFormat('#,###').format(_stepsToday),
-                        subtitle: 'Ziel: 10.000',
-                        icon: Icons.directions_walk,
-                        color: const Color(0xFF4CAF50),
-                        progress: (_stepsToday / 10000).clamp(0.0, 1.0),
-                      ),
-                      _StatCard(
-                        title: 'Schlaf',
-                        value:
-                            _sleepLast > 0 ? '${_sleepLast.toStringAsFixed(1)} h' : '–',
-                        subtitle: 'Letzte Nacht',
-                        icon: Icons.bedtime,
-                        color: const Color(0xFF9C27B0),
-                        progress: (_sleepLast / 8).clamp(0.0, 1.0),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-                  // BMI Banner
-                  if (_lastBmi != null)
-                    _BmiBanner(bmi: _lastBmi!)
-                  else
-                    _BmiPrompt(onTap: () => _navigate(const BmiScreen())),
-                  const SizedBox(height: 24),
-
-                  // ── KI-Features ─────────────────────────────
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF5C6BC0),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'KI-POWERED',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'KI & Analyse',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                  // ── Heute detailliert ─────────────────────────
+                  _SectionHeader(
+                    label: 'HEUTE',
+                    title: DateFormat('EEEE, d. MMMM', 'de_DE').format(now),
+                    color: AppTheme.neon,
                   ),
                   const SizedBox(height: 12),
-                  _BigModuleCard(
-                    title: 'KI-Gesichtsscan',
-                    subtitle:
-                        'Augenschwellung • Hautfarbe • Asymmetrie • Rötungen',
-                    icon: Icons.face_retouching_natural,
-                    color: const Color(0xFF00897B),
-                    badge: 'NEU',
-                    onTap: () => _navigate(const FaceScanScreen()),
+                  _DetailedStats(
+                    waterMl: _waterMl,
+                    calories: _calories,
+                    steps: _steps,
+                    sleep: _sleep,
+                    actMin: _actMin,
+                    bmi: _bmi,
                   ),
-                  const SizedBox(height: 10),
-                  _BigModuleCard(
-                    title: 'KI-Arztassistent',
-                    subtitle:
-                        'Stell jede medizinische Frage – Deep Research KI',
-                    icon: Icons.smart_toy,
-                    color: const Color(0xFF5C6BC0),
-                    badge: 'CHAT',
-                    onTap: () => _navigate(const AiChatScreen()),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _SmallModuleCard(
-                          title: 'Symptom\nChecker',
-                          icon: Icons.medical_information,
-                          color: const Color(0xFFE91E63),
-                          onTap: () =>
-                              _navigate(const SymptomCheckerScreen()),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _SmallModuleCard(
-                          title: 'Gesundheits\nScore',
-                          icon: Icons.auto_graph,
-                          color: const Color(0xFF43A047),
-                          onTap: () =>
-                              _navigate(const HealthScoreScreen()),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
 
-                  // ── Tracking Module ──────────────────────────
-                  const Text(
-                    'Tracking',
-                    style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  ..._buildTrackingModules(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
+
+                  // ── Gesundheits-Tipps ─────────────────────────
+                  _HealthTip(score: score),
                 ]),
               ),
             ),
@@ -419,461 +255,528 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  List<Widget> _buildTrackingModules() {
-    final modules = [
-      _ModuleInfo('BMI Rechner', 'Gewicht & Körpergröße',
-          Icons.monitor_weight, const Color(0xFF2E7D5B), const BmiScreen()),
-      _ModuleInfo('Wassertracker', 'Tägliche Wasseraufnahme',
-          Icons.water_drop, const Color(0xFF2196F3), const WaterScreen()),
-      _ModuleInfo('Aktivität', 'Sport & Bewegung',
-          Icons.fitness_center, const Color(0xFFFF6B35), const ActivityScreen()),
-      _ModuleInfo('Schlaf', 'Schlafdauer & Qualität',
-          Icons.bedtime, const Color(0xFF9C27B0), const SleepScreen()),
-      _ModuleInfo('Ernährung', 'Kalorien & Nährstoffe',
-          Icons.restaurant, const Color(0xFFF44336), const NutritionScreen()),
-    ];
-
-    return modules
-        .map((m) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _ModuleCard(
-                info: m,
-                onTap: () => _navigate(m.screen),
-              ),
-            ))
-        .toList();
-  }
-
-  void _navigate(Widget screen) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    ).then((_) async {
-      await _loadDashboard();
-      await _checkApiKey();
-    });
-  }
-}
-
-// ── Hilfsklassen ──────────────────────────────────────────────────
-
-class _ModuleInfo {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final Widget screen;
-  _ModuleInfo(this.title, this.subtitle, this.icon, this.color, this.screen);
 }
 
 // ── Widgets ───────────────────────────────────────────────────────
 
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final double progress;
+class _HeroHeader extends StatelessWidget {
+  final String greeting;
+  final int score;
+  final bool hasApiKey;
+  final Animation<double> pulseAnim;
+  final VoidCallback onAiTap;
+  final VoidCallback onSettingsTap;
 
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.progress,
+  const _HeroHeader({
+    required this.greeting,
+    required this.score,
+    required this.hasApiKey,
+    required this.pulseAnim,
+    required this.onAiTap,
+    required this.onSettingsTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+      padding: EdgeInsets.fromLTRB(
+          20, MediaQuery.of(context).padding.top + 12, 20, 28),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF050B18), Color(0xFF0A1628), Color(0xFF050B18)],
+          stops: [0.0, 0.5, 1.0],
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 6),
-              Text(title,
-                  style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(greeting,
+                        style: AppTheme.caption
+                            .copyWith(color: AppTheme.neon, letterSpacing: 2)),
+                    const SizedBox(height: 4),
+                    const GradientText(
+                      'HealthBar',
+                      style: AppTheme.headline1,
+                      gradient: AppTheme.heroGradient,
+                    ),
+                  ],
+                ),
+              ),
+              // Einstellungen
+              IconButton(
+                icon: const Icon(Icons.settings_outlined,
+                    color: AppTheme.textSecondary),
+                onPressed: onSettingsTap,
+              ),
             ],
           ),
-          const Spacer(),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: color)),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: color.withOpacity(0.15),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-              minHeight: 4,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(subtitle,
-              style:
-                  TextStyle(color: Colors.grey[400], fontSize: 10)),
-        ],
-      ),
-    );
-  }
-}
+          const SizedBox(height: 20),
 
-class _BmiBanner extends StatelessWidget {
-  final double bmi;
-  const _BmiBanner({required this.bmi});
-
-  Color get _color {
-    if (bmi < 18.5) return const Color(0xFFFF9800);
-    if (bmi < 25.0) return const Color(0xFF4CAF50);
-    if (bmi < 30.0) return const Color(0xFFFF9800);
-    return const Color(0xFFF44336);
-  }
-
-  String get _category {
-    if (bmi < 18.5) return 'Untergewicht';
-    if (bmi < 25.0) return 'Normalgewicht';
-    if (bmi < 30.0) return 'Übergewicht';
-    return 'Adipositas';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _color.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: _color.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: _color.withOpacity(0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                bmi.toStringAsFixed(1),
-                style: TextStyle(
-                    color: _color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Score-Karte + KI-Button
+          Row(
             children: [
-              Text('Dein BMI',
-                  style:
-                      TextStyle(color: Colors.grey[500], fontSize: 12)),
-              Text(_category,
-                  style: TextStyle(
-                      color: _color,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18)),
-              Text('Letzter Eintrag',
-                  style: TextStyle(
-                      color: Colors.grey[400], fontSize: 11)),
+              // Score-Ring
+              Expanded(
+                child: GlassCard(
+                  glowColor: _scoreColor(score),
+                  glowIntensity: 0.25,
+                  child: Row(
+                    children: [
+                      // Kreis
+                      SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CircularProgressIndicator(
+                              value: score / 100,
+                              backgroundColor:
+                                  _scoreColor(score).withOpacity(0.12),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  _scoreColor(score)),
+                              strokeWidth: 6,
+                            ),
+                            Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('$score',
+                                      style: TextStyle(
+                                          color: _scoreColor(score),
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w900)),
+                                  Text('/ 100',
+                                      style: AppTheme.caption.copyWith(
+                                          fontSize: 9)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Gesundheits-\nScore heute',
+                              style: AppTheme.caption),
+                          const SizedBox(height: 4),
+                          Text(
+                            _scoreLabel(score),
+                            style: TextStyle(
+                              color: _scoreColor(score),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // KI-Button
+              GestureDetector(
+                onTap: onAiTap,
+                child: AnimatedBuilder(
+                  animation: pulseAnim,
+                  builder: (_, __) => Container(
+                    width: 80,
+                    height: 94,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMid),
+                      color: AppTheme.colorAI.withOpacity(0.1),
+                      border: Border.all(
+                          color: AppTheme.colorAI.withOpacity(0.3)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.colorAI
+                              .withOpacity(0.2 * pulseAnim.value),
+                          blurRadius: 20 * pulseAnim.value,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.smart_toy_rounded,
+                            color: AppTheme.colorAI,
+                            size: 28 * (pulseAnim.value * 0.05 + 0.95)),
+                        const SizedBox(height: 6),
+                        Text('KI-Arzt',
+                            style: TextStyle(
+                              color: AppTheme.colorAI,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            )),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (hasApiKey)
+                              PulseDot(size: 6, color: AppTheme.neonGreen)
+                            else
+                              const Icon(Icons.circle,
+                                  size: 6, color: AppTheme.textMuted),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
       ),
     );
   }
+
+  Color _scoreColor(int s) {
+    if (s >= 80) return AppTheme.neonGreen;
+    if (s >= 60) return AppTheme.neon;
+    if (s >= 40) return const Color(0xFFFFB300);
+    return AppTheme.colorFood;
+  }
+
+  String _scoreLabel(int s) {
+    if (s >= 80) return 'Ausgezeichnet';
+    if (s >= 60) return 'Gut';
+    if (s >= 40) return 'Okay';
+    return 'Verbesserung';
+  }
 }
 
-class _BmiPrompt extends StatelessWidget {
-  final VoidCallback onTap;
-  const _BmiPrompt({required this.onTap});
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  final String title;
+  final Color color;
+
+  const _SectionHeader({
+    required this.label,
+    required this.title,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2E7D5B).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: const Color(0xFF2E7D5B).withOpacity(0.3)),
+    return Row(
+      children: [
+        NeonBadge(label: label, color: color),
+        const SizedBox(width: 10),
+        Text(title, style: AppTheme.headline3),
+      ],
+    );
+  }
+}
+
+class _VitalRingRow extends StatelessWidget {
+  final int waterMl;
+  final int calories;
+  final int steps;
+  final double sleep;
+
+  const _VitalRingRow({
+    required this.waterMl,
+    required this.calories,
+    required this.steps,
+    required this.sleep,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _VitalRing(
+          value: waterMl / 2500,
+          label: 'Wasser',
+          display: '${(waterMl / 1000).toStringAsFixed(1)}L',
+          color: AppTheme.colorWater,
+          icon: Icons.water_drop,
         ),
-        child: const Row(
-          children: [
-            Icon(Icons.monitor_weight,
-                color: Color(0xFF2E7D5B), size: 32),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('BMI noch nicht berechnet',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2E7D5B))),
-                  Text('Tippe hier um deinen BMI zu berechnen',
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
+        _VitalRing(
+          value: calories / 2000,
+          label: 'Kcal',
+          display: '$calories',
+          color: AppTheme.colorActivity,
+          icon: Icons.local_fire_department,
+        ),
+        _VitalRing(
+          value: steps / 10000,
+          label: 'Schritte',
+          display: steps >= 1000
+              ? '${(steps / 1000).toStringAsFixed(1)}k'
+              : '$steps',
+          color: AppTheme.colorScore,
+          icon: Icons.directions_walk,
+        ),
+        _VitalRing(
+          value: sleep / 8,
+          label: 'Schlaf',
+          display: sleep > 0 ? '${sleep.toStringAsFixed(1)}h' : '—',
+          color: AppTheme.colorSleep,
+          icon: Icons.bedtime,
+        ),
+      ],
+    );
+  }
+}
+
+class _VitalRing extends StatelessWidget {
+  final double value;
+  final String label;
+  final String display;
+  final Color color;
+  final IconData icon;
+
+  const _VitalRing({
+    required this.value,
+    required this.label,
+    required this.display,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = value.clamp(0.0, 1.0);
+    return Expanded(
+      child: Column(
+        children: [
+          SizedBox(
+            width: 58,
+            height: 58,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CircularProgressIndicator(
+                  value: clamped,
+                  backgroundColor: color.withOpacity(0.12),
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                  strokeWidth: 5,
+                ),
+                Center(
+                  child: Icon(icon, color: color, size: 20),
+                ),
+              ],
             ),
-            Icon(Icons.arrow_forward_ios,
-                color: Color(0xFF2E7D5B), size: 16),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(display,
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.w800, fontSize: 13)),
+          Text(label, style: AppTheme.caption.copyWith(fontSize: 10)),
+        ],
       ),
     );
   }
 }
 
-class _BigModuleCard extends StatelessWidget {
+class _QuickAiCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
   final Color color;
-  final String badge;
   final VoidCallback onTap;
 
-  const _BigModuleCard({
+  const _QuickAiCard({
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.color,
-    required this.badge,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return GlassCard(
+      glowColor: color,
+      glowIntensity: 0.2,
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [color, color.withOpacity(0.7)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 22),
           ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: Colors.white, size: 28),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          badge,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.white70),
-          ],
-        ),
+          const SizedBox(height: 10),
+          Text(title,
+              style: AppTheme.bodyBold.copyWith(height: 1.3)),
+          const SizedBox(height: 3),
+          Text(subtitle, style: AppTheme.caption, maxLines: 2),
+        ],
       ),
     );
   }
 }
 
-class _SmallModuleCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
+class _DetailedStats extends StatelessWidget {
+  final int waterMl;
+  final int calories;
+  final int steps;
+  final double sleep;
+  final int actMin;
+  final double? bmi;
 
-  const _SmallModuleCard({
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.onTap,
+  const _DetailedStats({
+    required this.waterMl,
+    required this.calories,
+    required this.steps,
+    required this.sleep,
+    required this.actMin,
+    required this.bmi,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
+    return GlassCard(
+      child: Column(
+        children: [
+          _StatRow(Icons.water_drop, 'Wasser',
+              '${waterMl}ml', '/ 2500ml', AppTheme.colorWater, waterMl / 2500),
+          const SizedBox(height: 10),
+          _StatRow(Icons.local_fire_department, 'Kalorien',
+              '${calories}kcal', '/ 2000kcal', AppTheme.colorActivity, calories / 2000),
+          const SizedBox(height: 10),
+          _StatRow(Icons.directions_walk, 'Schritte',
+              NumberFormat('#,###').format(steps),
+              '/ 10.000', AppTheme.colorScore, steps / 10000),
+          const SizedBox(height: 10),
+          _StatRow(Icons.bedtime, 'Schlaf',
+              sleep > 0 ? '${sleep.toStringAsFixed(1)}h' : '—',
+              '/ 8h', AppTheme.colorSleep, sleep / 8),
+          const SizedBox(height: 10),
+          _StatRow(Icons.fitness_center, 'Sport',
+              '${actMin}min', '/ 30min', AppTheme.colorActivity, actMin / 30),
+          if (bmi != null) ...[
             const SizedBox(height: 10),
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: const Color(0xFF1A1A2E),
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Icon(Icons.arrow_forward, color: color, size: 16),
+            _StatRow(Icons.monitor_weight, 'BMI',
+                bmi!.toStringAsFixed(1), _bmiCat(bmi!),
+                _bmiColor(bmi!), (bmi! / 30).clamp(0, 1)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _bmiCat(double b) {
+    if (b < 18.5) return 'Untergewicht';
+    if (b < 25) return 'Normal';
+    if (b < 30) return 'Übergewicht';
+    return 'Adipositas';
+  }
+
+  Color _bmiColor(double b) {
+    if (b < 18.5) return AppTheme.neonBlue;
+    if (b < 25) return AppTheme.neonGreen;
+    if (b < 30) return const Color(0xFFFFB300);
+    return AppTheme.colorFood;
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String target;
+  final Color color;
+  final double progress;
+
+  const _StatRow(this.icon, this.label, this.value, this.target, this.color,
+      this.progress);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: color, size: 16),
+            const SizedBox(width: 8),
+            Text(label, style: AppTheme.caption),
+            const Spacer(),
+            Text(value,
+                style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14)),
+            const SizedBox(width: 4),
+            Text(target, style: AppTheme.caption.copyWith(fontSize: 10)),
           ],
         ),
-      ),
+        const SizedBox(height: 5),
+        NeonProgressBar(
+            value: progress.clamp(0.0, 1.0), color: color, height: 4),
+      ],
     );
   }
 }
 
-class _ModuleCard extends StatelessWidget {
-  final _ModuleInfo info;
-  final VoidCallback onTap;
-  const _ModuleCard({required this.info, required this.onTap});
+class _HealthTip extends StatelessWidget {
+  final int score;
+  const _HealthTip({required this.score});
+
+  static const _tips = [
+    ('💧', 'Wasser trinken', 'Trinke ein Glas Wasser – Hydratation verbessert Konzentration um bis zu 20%.'),
+    ('🚶', 'Kurze Bewegungspause', 'Bereits 10 Minuten Gehen senkt Blutzucker und verbessert die Stimmung.'),
+    ('😴', 'Schlaf ist Medizin', '7-9h Schlaf reduziert das Herzerkrankungsrisiko um 30% (Harvard Medical School).'),
+    ('🥗', 'Ballaststoffe', 'Ballaststoffreiche Ernährung reduziert Darmkrebsrisiko um bis zu 17% (WHO).'),
+    ('🧘', 'Stressreduktion', '5 Minuten tiefes Atmen aktiviert das parasympathische Nervensystem.'),
+    ('☀️', 'Vitamin D', 'Täglich 20 min Sonnenlicht unterstützt Immunsystem und Knochengesundheit.'),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: info.color.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: info.color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
+    final tip = _tips[DateTime.now().hour % _tips.length];
+    return GlassCard(
+      glowColor: AppTheme.neon,
+      glowIntensity: 0.15,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              NeonBadge(label: 'TIPP', color: AppTheme.neon),
+              const SizedBox(width: 8),
+              const Text('Wissenschaftlicher Gesundheitstipp',
+                  style: AppTheme.caption),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tip.$1, style: const TextStyle(fontSize: 28)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tip.$2, style: AppTheme.bodyBold),
+                    const SizedBox(height: 4),
+                    Text(tip.$3, style: AppTheme.body),
+                  ],
+                ),
               ),
-              child: Icon(info.icon, color: info.color, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(info.title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: Color(0xFF1A1A2E))),
-                  Text(info.subtitle,
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey[500])),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right, color: Colors.grey[400]),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

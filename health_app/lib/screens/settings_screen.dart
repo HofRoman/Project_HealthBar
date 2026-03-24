@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/gemini_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,502 +12,432 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _keyController = TextEditingController();
-  bool _obscureKey = true;
+  final _keyCtrl = TextEditingController();
+  bool _obscure = true;
   bool _isSaving = false;
   bool _isTesting = false;
-  String? _status;
-  bool _statusIsSuccess = false;
+  String? _msg;
+  bool _msgOk = false;
   String? _savedKey;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedKey();
+    _load();
   }
 
   @override
   void dispose() {
-    _keyController.dispose();
+    _keyCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadSavedKey() async {
-    final key = await GeminiService.getSavedApiKey();
+  Future<void> _load() async {
+    final k = await GeminiService.getSavedApiKey();
     setState(() {
-      _savedKey = key;
-      if (key != null && key.isNotEmpty) {
-        _keyController.text = key;
-      }
+      _savedKey = k;
+      if (k != null && k.isNotEmpty) _keyCtrl.text = k;
     });
   }
 
-  Future<void> _saveKey() async {
-    final key = _keyController.text.trim();
-    if (key.isEmpty) {
-      setState(() {
-        _status = 'Bitte einen API-Key eingeben.';
-        _statusIsSuccess = false;
-      });
+  Future<void> _save() async {
+    final k = _keyCtrl.text.trim();
+    if (k.isEmpty) {
+      setState(() { _msg = 'Bitte einen API-Key eingeben.'; _msgOk = false; });
       return;
     }
-
     setState(() => _isSaving = true);
-    await GeminiService.saveApiKey(key);
+    await GeminiService.saveApiKey(k);
     setState(() {
-      _isSaving = false;
-      _savedKey = key;
-      _status = 'API-Key gespeichert!';
-      _statusIsSuccess = true;
+      _isSaving = false; _savedKey = k;
+      _msg = '✅ API-Key gespeichert!'; _msgOk = true;
     });
   }
 
-  Future<void> _testKey() async {
-    final key = _keyController.text.trim();
-    if (key.isEmpty) {
-      setState(() {
-        _status = 'Bitte zuerst einen Key eingeben.';
-        _statusIsSuccess = false;
-      });
-      return;
-    }
+  Future<void> _test() async {
+    final k = _keyCtrl.text.trim();
+    if (k.isEmpty) { setState(() { _msg = 'Bitte Key eingeben.'; _msgOk = false; }); return; }
 
-    setState(() {
-      _isTesting = true;
-      _status = null;
-    });
-
-    await GeminiService.saveApiKey(key);
-    final response = await GeminiService.chat(
-      'Antworte nur mit: "Verbindung erfolgreich!"',
-    );
+    setState(() { _isTesting = true; _msg = null; });
+    await GeminiService.saveApiKey(k);
+    final r = await GeminiService.chat('Antworte nur: "✅ Verbindung erfolgreich"');
 
     setState(() {
       _isTesting = false;
-      if (response.isSuccess) {
-        _status = '✅ Verbindung erfolgreich! Die KI ist bereit.';
-        _statusIsSuccess = true;
-        _savedKey = key;
+      if (r.isSuccess) {
+        _msg = '✅ Verbindung erfolgreich! Gemini 2.0 Flash ist aktiv.';
+        _msgOk = true;
+        _savedKey = k;
       } else {
-        _status = '❌ Fehler: ${response.error}';
-        _statusIsSuccess = false;
+        _msg = '❌ ${r.error}';
+        _msgOk = false;
       }
     });
-  }
-
-  void _clearKey() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('API-Key löschen?'),
-        content:
-            const Text('Alle KI-Funktionen werden deaktiviert.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Abbrechen')),
-          ElevatedButton(
-            onPressed: () async {
-              await GeminiService.saveApiKey('');
-              setState(() {
-                _keyController.clear();
-                _savedKey = null;
-                _status = 'API-Key gelöscht.';
-                _statusIsSuccess = false;
-              });
-              if (context.mounted) Navigator.pop(ctx);
-            },
-            style:
-                ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Löschen',
-                style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasKey = _savedKey != null && _savedKey!.isNotEmpty;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
+        backgroundColor: AppTheme.bgCard,
         title: const Text('Einstellungen'),
-        backgroundColor: const Color(0xFF455A64),
-        foregroundColor: Colors.white,
-        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: const NeonDivider(),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // KI-Status
-            _StatusCard(hasKey: _savedKey != null && _savedKey!.isNotEmpty),
-
-            const SizedBox(height: 20),
-
-            // API-Key Abschnitt
-            const Text(
-              'Google Gemini API-Key',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-
-            // Erklärungs-Karte
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              color: const Color(0xFFE8F5E9),
-              elevation: 0,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.info_outline,
-                            color: Color(0xFF2E7D32), size: 20),
-                        SizedBox(width: 8),
-                        Text('Komplett KOSTENLOS!',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF2E7D32))),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '• Gemini 1.5 Flash: 15 Anfragen/Min, 1 Mio. Tokens/Tag gratis\n'
-                      '• Keine Kreditkarte nötig\n'
-                      '• Keine Kosten, kein Abo',
-                      style: TextStyle(
-                          fontSize: 13, color: Color(0xFF1B5E20)),
-                    ),
-                    const SizedBox(height: 10),
-                    GestureDetector(
-                      onTap: () {
-                        Clipboard.setData(const ClipboardData(
-                          text: 'https://aistudio.google.com/app/apikey',
-                        ));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content:
-                                Text('Link kopiert! Im Browser öffnen.'),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32),
-                          borderRadius: BorderRadius.circular(8),
+            // ── Status ────────────────────────────────────────
+            GlassCard(
+              glowColor: hasKey ? AppTheme.neonGreen : AppTheme.textMuted,
+              glowIntensity: hasKey ? 0.25 : 0.05,
+              gradient: LinearGradient(
+                colors: [
+                  (hasKey ? AppTheme.neonGreen : AppTheme.textMuted)
+                      .withOpacity(0.15),
+                  (hasKey ? AppTheme.neonGreen : AppTheme.textMuted)
+                      .withOpacity(0.03),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              child: Row(
+                children: [
+                  PulseDot(
+                    color: hasKey ? AppTheme.neonGreen : AppTheme.textMuted,
+                    size: 12,
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hasKey ? 'KI aktiv' : 'KI inaktiv',
+                        style: TextStyle(
+                          color: hasKey
+                              ? AppTheme.neonGreen
+                              : AppTheme.textSecondary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
                         ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
+                      ),
+                      Text(
+                        hasKey
+                            ? 'Google Gemini 2.0 Flash verbunden'
+                            : 'API-Key benötigt',
+                        style: AppTheme.caption,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Kostenlos Badge ───────────────────────────────
+            const Text('Google Gemini API-Key',
+                style: AppTheme.headline3),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                NeonBadge(label: '100% KOSTENLOS', color: AppTheme.neonGreen),
+                const SizedBox(width: 8),
+                NeonBadge(
+                    label: 'KEINE KREDITKARTE', color: AppTheme.colorWater),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // ── Erklärungs-Karte ──────────────────────────────
+            GlassCard(
+              glowColor: AppTheme.neonGreen,
+              glowIntensity: 0.1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.auto_awesome,
+                          color: AppTheme.neonGreen, size: 18),
+                      SizedBox(width: 8),
+                      Text('Was du bekommst (kostenlos):',
+                          style: AppTheme.bodyBold),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...[
+                    ('⚡', 'Gemini 2.0 Flash',
+                        '15 Anfragen/Min, 1 Mio. Tokens/Tag'),
+                    ('🔍', 'Google Search Grounding',
+                        'KI sucht selbst nach Studien & Quellen'),
+                    ('👁️', 'Vision/Bildanalyse',
+                        'Gesichtsscan & Bild-Diagnose'),
+                    ('🧠', 'Medizin-KI',
+                        'Komplettes medizinisches Fachwissen'),
+                  ].map((item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
                           children: [
-                            Icon(Icons.open_in_new,
-                                color: Colors.white, size: 16),
-                            SizedBox(width: 6),
-                            Text(
-                              'aistudio.google.com/app/apikey',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold),
+                            Text(item.$1,
+                                style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(item.$2, style: AppTheme.bodyBold),
+                                Text(item.$3, style: AppTheme.caption),
+                              ],
                             ),
                           ],
                         ),
+                      )),
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(const ClipboardData(
+                          text: 'https://aistudio.google.com/app/apikey'));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Link kopiert → Im Browser öffnen'),
+                          backgroundColor: AppTheme.bgCard,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppTheme.radiusSmall)),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.neonGreen.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                        border: Border.all(
+                            color: AppTheme.neonGreen.withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.open_in_new,
+                              color: AppTheme.neonGreen, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            'aistudio.google.com/app/apikey',
+                            style: TextStyle(
+                              color: AppTheme.neonGreen,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.copy,
+                              color: AppTheme.neonGreen, size: 14),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Link antippen zum Kopieren, dann im Browser öffnen',
-                      style: TextStyle(
-                          fontSize: 11, color: Color(0xFF388E3C)),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
+            const SizedBox(height: 16),
 
-            const SizedBox(height: 14),
-
-            // Eingabefeld
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _keyController,
-                      obscureText: _obscureKey,
-                      style: const TextStyle(fontFamily: 'monospace'),
-                      decoration: InputDecoration(
-                        labelText: 'API-Key eingeben',
-                        hintText: 'AIzaSy...',
-                        prefixIcon: const Icon(Icons.key,
-                            color: Color(0xFF455A64)),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscureKey
-                              ? Icons.visibility
-                              : Icons.visibility_off),
-                          onPressed: () => setState(
-                              () => _obscureKey = !_obscureKey),
+            // ── Key Eingabe ───────────────────────────────────
+            GlassCard(
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _keyCtrl,
+                    obscureText: _obscure,
+                    style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: AppTheme.textPrimary,
+                        fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: 'API-Key',
+                      hintText: 'AIzaSy...',
+                      prefixIcon: const Icon(Icons.key,
+                          color: AppTheme.neon, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscure ? Icons.visibility : Icons.visibility_off,
+                          color: AppTheme.textSecondary,
+                          size: 20,
                         ),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                              color: Color(0xFF455A64), width: 2),
-                        ),
+                        onPressed: () =>
+                            setState(() => _obscure = !_obscure),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed:
-                                (_isTesting || _isSaving) ? null : _testKey,
-                            icon: _isTesting
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.wifi_tethering),
-                            label: Text(
-                                _isTesting ? 'Teste...' : 'Testen'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF455A64),
-                              side: const BorderSide(
-                                  color: Color(0xFF455A64)),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              (_isTesting || _isSaving) ? null : _test,
+                          icon: _isTesting
+                              ? const SizedBox(
+                                  width: 14, height: 14,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.neon))
+                              : const Icon(Icons.wifi_tethering,
+                                  size: 16),
+                          label: Text(
+                              _isTesting ? 'Teste...' : 'Verbindung testen'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.neon,
+                            side: const BorderSide(color: AppTheme.neon),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppTheme.radiusSmall)),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed:
-                                (_isSaving || _isTesting) ? null : _saveKey,
-                            icon: _isSaving
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.save),
-                            label: Text(
-                                _isSaving ? 'Speichert...' : 'Speichern'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF455A64),
-                              foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              (_isSaving || _isTesting) ? null : _save,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 14, height: 14,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: AppTheme.bg))
+                              : const Icon(Icons.save_rounded, size: 16),
+                          label: Text(
+                              _isSaving ? 'Speichert...' : 'Speichern'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.neon,
+                            foregroundColor: AppTheme.bg,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusSmall)),
                           ),
-                        ),
-                      ],
-                    ),
-                    if (_savedKey != null && _savedKey!.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: _clearKey,
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.red, size: 18),
-                          label: const Text('API-Key löschen',
-                              style: TextStyle(color: Colors.red)),
                         ),
                       ),
                     ],
+                  ),
+                  if (hasKey) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          await GeminiService.saveApiKey('');
+                          setState(() {
+                            _keyCtrl.clear();
+                            _savedKey = null;
+                            _msg = 'API-Key gelöscht.';
+                            _msgOk = false;
+                          });
+                        },
+                        icon: const Icon(Icons.delete_outline,
+                            color: AppTheme.colorFood, size: 16),
+                        label: const Text('Key löschen',
+                            style: TextStyle(color: AppTheme.colorFood)),
+                      ),
+                    ),
                   ],
-                ),
+                ],
               ),
             ),
 
-            // Status-Nachricht
-            if (_status != null) ...[
+            // Status-Meldung
+            if (_msg != null) ...[
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _statusIsSuccess
-                      ? const Color(0xFFE8F5E9)
-                      : const Color(0xFFFFEBEE),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _statusIsSuccess
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFF44336),
-                  ),
-                ),
-                child: Text(
-                  _status!,
-                  style: TextStyle(
-                    color: _statusIsSuccess
-                        ? const Color(0xFF2E7D32)
-                        : const Color(0xFFD32F2F),
-                    fontWeight: FontWeight.w500,
-                  ),
+              GlassCard(
+                glowColor: _msgOk ? AppTheme.neonGreen : AppTheme.colorFood,
+                glowIntensity: 0.2,
+                child: Row(
+                  children: [
+                    Icon(
+                      _msgOk ? Icons.check_circle : Icons.error_outline,
+                      color: _msgOk ? AppTheme.neonGreen : AppTheme.colorFood,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(_msg!,
+                          style: TextStyle(
+                            color: _msgOk
+                                ? AppTheme.neonGreen
+                                : AppTheme.colorFood,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          )),
+                    ),
+                  ],
                 ),
               ),
             ],
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
-            // Anleitung
-            const Text('Schritt-für-Schritt Anleitung',
-                style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            _StepCard(
-              step: 1,
-              title: 'Google AI Studio öffnen',
-              desc: 'Gehe zu aistudio.google.com/app/apikey '
-                  '(Link oben kopieren, im Browser öffnen)',
+            // ── Anleitung ──────────────────────────────────────
+            const Text('Schritt-für-Schritt', style: AppTheme.headline3),
+            const SizedBox(height: 12),
+            ...List.generate(
+              _steps.length,
+              (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.neon.withOpacity(0.15),
+                        border: Border.all(
+                            color: AppTheme.neon.withOpacity(0.4)),
+                      ),
+                      child: Center(
+                        child: Text('${i + 1}',
+                            style: const TextStyle(
+                                color: AppTheme.neon,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_steps[i].$1, style: AppTheme.bodyBold),
+                          Text(_steps[i].$2, style: AppTheme.caption),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            _StepCard(
-              step: 2,
-              title: 'Mit Google anmelden',
-              desc:
-                  'Kostenloses Google-Konto verwenden (Gmail, etc.)',
-            ),
-            _StepCard(
-              step: 3,
-              title: '"Create API key" klicken',
-              desc: 'Den generierten Key kopieren',
-            ),
-            _StepCard(
-              step: 4,
-              title: 'Key hier einfügen & speichern',
-              desc: 'Auf "Testen" klicken um die Verbindung zu prüfen',
-            ),
-
-            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
-}
 
-class _StatusCard extends StatelessWidget {
-  final bool hasKey;
-  const _StatusCard({required this.hasKey});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: hasKey
-              ? [const Color(0xFF2E7D32), const Color(0xFF43A047)]
-              : [const Color(0xFF616161), const Color(0xFF757575)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            hasKey ? Icons.check_circle : Icons.cancel,
-            color: Colors.white,
-            size: 36,
-          ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                hasKey ? 'KI aktiv' : 'KI inaktiv',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                hasKey
-                    ? 'Google Gemini 1.5 Flash verbunden'
-                    : 'API-Key eingeben um KI-Features zu aktivieren',
-                style: const TextStyle(
-                    color: Colors.white70, fontSize: 12),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepCard extends StatelessWidget {
-  final int step;
-  final String title;
-  final String desc;
-
-  const _StepCard(
-      {required this.step, required this.title, required this.desc});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-              color: Color(0xFF455A64),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                '$step',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(desc,
-                    style: TextStyle(
-                        color: Colors.grey[600], fontSize: 13)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  static const _steps = [
+    ('Google AI Studio öffnen',
+        'aistudio.google.com/app/apikey (Link oben kopieren)'),
+    ('Mit Google-Konto anmelden', 'Kostenloses Gmail-Konto reicht aus'),
+    ('"Create API key" klicken', 'Key wird sofort erstellt'),
+    ('Key kopieren & hier einfügen', 'Dann "Verbindung testen" drücken'),
+  ];
 }

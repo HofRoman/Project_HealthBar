@@ -3,34 +3,43 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Google Gemini 1.5 Flash API Service
-/// KOMPLETT KOSTENLOS: 15 Anfragen/Min, 1 Million Tokens/Tag
-/// API Key kostenlos holen: https://aistudio.google.com/app/apikey
+/// Google Gemini 2.0 Flash API Service
+/// KOMPLETT KOSTENLOS:
+///   - gemini-2.0-flash: 15 RPM, 1 Mio Tokens/Tag, unterstützt Google Search
+///   - Kein Abo, keine Kreditkarte
+/// API Key holen: https://aistudio.google.com/app/apikey
 class GeminiService {
-  static const String _model = 'gemini-1.5-flash';
+  // gemini-2.0-flash unterstützt Google Search Grounding (kostenlos)
+  static const String _model       = 'gemini-2.0-flash';
+  static const String _modelVision = 'gemini-2.0-flash';
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
   static const String _apiKeyPref = 'gemini_api_key';
 
-  // Medizinisches System-Prompt – macht die KI zum Gesundheitsexperten
-  static const String _medicalSystemPrompt = '''
-Du bist ein hochqualifizierter medizinischer KI-Assistent der HealthBar-App.
-Du hast umfassendes Wissen in allen medizinischen Fachgebieten:
-- Innere Medizin, Allgemeinmedizin, Kardiologie, Neurologie
+  // ── Medizinischer System-Prompt ──────────────────────────────
+  static const String _systemPrompt = '''
+Du bist ein hochqualifizierter KI-Medizinassistent der HealthBar-App.
+Du hast Zugang zu Google Search und kannst aktiv nach den NEUESTEN wissenschaftlichen Medizin-Publikationen, Studien und Leitlinien suchen.
+
+Deine medizinischen Fachgebiete:
+- Innere Medizin, Allgemeinmedizin, Notfallmedizin
+- Kardiologie, Neurologie, Onkologie
 - Dermatologie, Ophthalmologie (Augenheilkunde)
 - Ernährungsmedizin, Sportmedizin, Präventivmedizin
-- Pharmakologie (Medikamente, Wechselwirkungen)
-- Erste Hilfe und Notfallmedizin
+- Pharmakologie, Immunologie, Genetik
+- Evidence-based Medicine: PubMed, Cochrane, WHO-Leitlinien
 
-WICHTIGE REGELN:
+VERHALTENSREGELN:
 1. Antworte IMMER auf Deutsch
-2. Sei präzise, verständlich und hilfreich
-3. Füge bei ernsten Symptomen IMMER den Hinweis ein: "Bitte suche sofort einen Arzt auf!"
-4. Diese App ersetzt KEINEN Arztbesuch – weise darauf hin wenn angebracht
-5. Nutze dein Wissen für Deep Research: erkläre Hintergründe, Ursachen, Behandlungsoptionen
-6. Bei Bildanalysen: sei detailliert aber sachlich, ohne Panikmache
+2. Nutze Google Search aktiv um neueste wissenschaftliche Erkenntnisse zu finden
+3. Zitiere Quellen wenn möglich (Studie, Jahr, Journal)
+4. Bei ernsthaften Symptomen: "⚠️ Bitte sofort einen Arzt aufsuchen!"
+5. Weise immer darauf hin: Diese App ersetzt keinen Arztbesuch
+6. Sei präzise, verständlich und hilfreich
+7. Nutze Markdown für strukturierte Antworten
 ''';
 
+  // ── API Key Management ──────────────────────────────────────
   static Future<String?> getSavedApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_apiKeyPref);
@@ -43,26 +52,25 @@ WICHTIGE REGELN:
 
   static Future<bool> hasApiKey() async {
     final key = await getSavedApiKey();
-    return key != null && key.isNotEmpty;
+    return key != null && key.trim().isNotEmpty;
   }
 
-  /// Text-Anfrage an Gemini (Medizinischer Chat, Symptom-Checker, etc.)
+  // ── Text-Chat ───────────────────────────────────────────────
+  /// Medizinischer Chat mit optionalem Verlauf
   static Future<GeminiResponse> chat(
     String userMessage, {
     List<ChatMessage>? history,
     String? customSystemPrompt,
+    bool useSearch = false,
   }) async {
     final apiKey = await getSavedApiKey();
     if (apiKey == null || apiKey.isEmpty) {
-      return GeminiResponse.error('Kein API-Key gesetzt. Bitte in Einstellungen eingeben.');
+      return GeminiResponse.error(_noKeyError);
     }
 
-    final systemPrompt = customSystemPrompt ?? _medicalSystemPrompt;
-
-    // Konversationsverlauf aufbauen
+    final systemPrompt = customSystemPrompt ?? _systemPrompt;
     final contents = <Map<String, dynamic>>[];
 
-    // Vorherige Nachrichten
     if (history != null) {
       for (final msg in history) {
         contents.add({
@@ -72,8 +80,7 @@ WICHTIGE REGELN:
       }
     }
 
-    // Aktuelle Nachricht mit System-Prompt
-    final fullMessage = history == null || history.isEmpty
+    final fullMessage = (history == null || history.isEmpty)
         ? '$systemPrompt\n\nNutzer: $userMessage'
         : userMessage;
 
@@ -82,75 +89,108 @@ WICHTIGE REGELN:
       'parts': [{'text': fullMessage}],
     });
 
-    return _sendRequest(apiKey, contents);
+    return _sendRequest(apiKey, contents, useSearch: useSearch);
   }
 
-  /// Bildanalyse mit Gemini Vision (Gesichtsscan, Hautanalyse, etc.)
-  static Future<GeminiResponse> analyzeImage(
-    Uint8List imageBytes, {
-    required String analysisPrompt,
-  }) async {
+  // ── Medizin Deep Research mit Google Search ─────────────────
+  /// KI sucht SELBST nach aktuellen wissenschaftlichen Quellen
+  static Future<GeminiResponse> deepMedicalResearch(String topic) async {
     final apiKey = await getSavedApiKey();
     if (apiKey == null || apiKey.isEmpty) {
-      return GeminiResponse.error('Kein API-Key gesetzt. Bitte in Einstellungen eingeben.');
+      return GeminiResponse.error(_noKeyError);
     }
 
-    final base64Image = base64Encode(imageBytes);
+    final prompt = '''
+$_systemPrompt
 
-    final contents = [
-      {
-        'role': 'user',
-        'parts': [
-          {'text': '$_medicalSystemPrompt\n\n$analysisPrompt'},
-          {
-            'inline_data': {
-              'mime_type': 'image/jpeg',
-              'data': base64Image,
-            }
-          },
-        ],
-      }
-    ];
+AUFGABE: Führe eine tiefe wissenschaftliche Medizin-Recherche zu folgendem Thema durch:
+"$topic"
 
-    return _sendRequest(apiKey, contents);
-  }
+Nutze Google Search aktiv um die NEUESTEN Erkenntnisse zu finden.
 
-  /// Gesichtsscan – analysiert sichtbare Gesundheitszeichen im Gesicht
-  static Future<GeminiResponse> analyzeFace(Uint8List imageBytes) async {
-    const prompt = '''
-Analysiere dieses Gesichtsfoto auf sichtbare medizinische Gesundheitszeichen.
-Untersuche systematisch folgende Bereiche:
+Strukturiere deine Antwort:
 
-**👁️ AUGEN & AUGENLIDER:**
-- Schwellung der Augenlider (Ödeme) → mögliche Allergien, Nierenprobleme, Schlafmangel
-- Rötung der Augen → Bindehautentzündung, Erschöpfung, Allergien
-- Gelbfärbung der Augenweiß (Skleren) → Leberfunktion (Ikterus/Gelbsucht)
-- Dunkle Ringe → Schlafmangel, Erschöpfung, Vitaminmangel
-- Herunterhängende Augenlider (Ptosis) → neurologische Warnsignale
+## 🔬 Aktueller Wissenschaftsstand
+[Neueste Erkenntnisse aus aktuellen Studien]
 
-**🎨 HAUT & GESICHTSFARBE:**
-- Blässe → mögliche Anämie, Kreislaufprobleme
-- Rötung → Entzündung, Fieber, Rosacea, Bluthochdruck
-- Gelbliche Tönung → Leber- oder Gallenblasenprobleme
-- Trockene/schuppige Haut → Dehydratation, Vitaminmangel
-- Akne oder Ausschläge → Hormonelles Ungleichgewicht
+## 📊 Schlüsselstudien & Evidenz
+[Wichtige Studien mit Quellenangaben: Autor, Jahr, Journal]
 
-**🧠 GESICHTSASYMMETRIE:**
-- Ungleichmäßige Gesichtshälfte → SOFORT Arzt: möglicher Schlaganfall (FAST-Check)
-- Hängendes Augenlid auf einer Seite → neurologische Warnung
+## 🏥 Aktuelle Leitlinien
+[WHO, DGI, AWMF oder andere anerkannte Leitlinien]
 
-**💧 ALLGEMEINE ZEICHEN:**
-- Geschwollenes Gesicht (generell) → Allergische Reaktion, Nierenprobleme
-- Erschöpfungszeichen, müder Gesichtsausdruck
+## 💊 Therapieoptionen (Stand der Wissenschaft)
+[Evidenzbasierte Behandlungsmethoden]
 
-Gib eine strukturierte, detaillierte Analyse. Wenn du nichts Auffälliges siehst, sage das klar.
-WICHTIGER HINWEIS AM ENDE: "⚕️ Diese Analyse ist kein Ersatz für eine ärztliche Untersuchung."
+## ⚠️ Warnsignale & Risikofaktoren
+[Wann zum Arzt]
+
+## 🔮 Forschungsausblick
+[Was erforscht wird, Trends]
+
+Quellenangaben am Ende.
 ''';
 
-    return analyzeImage(imageBytes, analysisPrompt: prompt);
+    final contents = [{
+      'role': 'user',
+      'parts': [{'text': prompt}],
+    }];
+
+    return _sendRequest(apiKey, contents, useSearch: true);
   }
 
-  /// Symptom-Checker – tiefe medizinische Recherche zu Symptomen
+  // ── Gesichtsscan mit Vision ──────────────────────────────────
+  static Future<GeminiResponse> analyzeFace(Uint8List imageBytes) async {
+    final apiKey = await getSavedApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      return GeminiResponse.error(_noKeyError);
+    }
+
+    const prompt = '''
+$_systemPrompt
+
+Analysiere dieses Gesichtsfoto auf sichtbare medizinische Gesundheitszeichen.
+Nutze dein medizinisches Fachwissen für eine systematische Untersuchung:
+
+**👁️ AUGEN & AUGENLIDER:**
+- Schwellung der Augenlider → Allergien, Nierenprobleme, Schlafmangel
+- Gelbfärbung der Skleren (Augenweiß) → Ikterus/Gelbsucht (Leberfunktion!)
+- Rötung der Bindehaut → Konjunktivitis, Allergien, Erschöpfung
+- Dunkle Augenringe → Schlafmangel, Anämie, Vitaminmangel
+- Herabhängende Lider (Ptosis) → Neurologische Warnung
+
+**🎨 HAUTBILD & GESICHTSFARBE:**
+- Blässe → Anämie, Kreislaufprobleme, Eisenmangel
+- Rötungen/Flush → Rosacea, Hypertonie, Entzündungen
+- Gelbliche Tönung → Leber- / Gallenblasenprobleme
+- Trockene / schuppige Haut → Dehydratation, Schilddrüse, Vitaminmangel
+- Akne / Ausschläge → Hormonelles Ungleichgewicht, Ernährung
+
+**⚠️ GESICHTSASYMMETRIE (NOTFALL-CHECK):**
+- Einseitige Lähmung / herabhängende Gesichtshälfte → SCHLAGANFALL-WARNUNG (FAST!)
+- Einseitige Ptosis → Hornersyndrom, Nervenläsion
+
+**💧 WEITERE ZEICHEN:**
+- Generalisierte Schwellung → Allergische Reaktion, Ödeme
+- Erschöpfte Gesichtszüge → Stress, Überlastung, Krankheit
+
+Gib eine klare, strukturierte Analyse. Triff keine endgültige Diagnose.
+Schluss-Hinweis: "⚕️ Diese KI-Analyse ersetzt keine ärztliche Untersuchung."
+''';
+
+    final base64Image = base64Encode(imageBytes);
+    final contents = [{
+      'role': 'user',
+      'parts': [
+        {'text': prompt},
+        {'inline_data': {'mime_type': 'image/jpeg', 'data': base64Image}},
+      ],
+    }];
+
+    return _sendRequest(apiKey, contents, useSearch: false, isVision: true);
+  }
+
+  // ── Symptom-Checker ──────────────────────────────────────────
   static Future<GeminiResponse> checkSymptoms(
     List<String> symptoms, {
     String? additionalInfo,
@@ -158,34 +198,33 @@ WICHTIGER HINWEIS AM ENDE: "⚕️ Diese Analyse ist kein Ersatz für eine ärzt
     final symptomList = symptoms.map((s) => '• $s').join('\n');
     final extra = additionalInfo != null ? '\nZusatzinfo: $additionalInfo' : '';
 
-    final prompt = '''
-Führe eine tiefe medizinische Analyse für folgende Symptome durch:
-
+    return chat(
+      '''
+Symptom-Analyse mit Deep Research. Symptoms:
 $symptomList$extra
 
-Strukturiere deine Antwort so:
-**🔍 MÖGLICHE URSACHEN** (von häufig bis selten):
-[Liste mit Erklärungen]
+## 🔍 Mögliche Ursachen
+[Häufig → Selten, mit medizinischer Erklärung]
 
-**⚠️ WARNSIGNALE** (wann sofort zum Arzt):
+## ⚠️ Warnzeichen – sofort zum Arzt wenn:
 [Klare Liste]
 
-**💊 ERSTE MASSNAHMEN** (was ich jetzt tun kann):
-[Praktische Tipps]
+## 💊 Erste Maßnahmen
+[Was ich jetzt tun kann]
 
-**🏥 EMPFOHLENE FACHRICHTUNG:**
-[Welcher Arzt ist zuständig]
+## 🏥 Empfohlene Facharztrichtung
 
-**📚 HINTERGRUNDWISSEN:**
-[Medizinische Erklärung der Symptome]
+## 📚 Medizinischer Hintergrund
+[Deep Research Erklärung der Pathophysiologie]
 
-Sei präzise und vollständig. Nutze dein medizinisches Fachwissen für echte Deep Research.
-''';
-
-    return chat(prompt);
+## 🔬 Aktuelle Studienerkenntnisse
+[Neueste wissenschaftliche Erkenntnisse zu diesen Symptomen]
+''',
+      useSearch: true,
+    );
   }
 
-  /// Gesundheits-Score berechnen basierend auf App-Daten
+  // ── Gesundheits-Score ────────────────────────────────────────
   static Future<GeminiResponse> calculateHealthScore({
     required double? bmi,
     required int waterMl,
@@ -193,131 +232,151 @@ Sei präzise und vollständig. Nutze dein medizinisches Fachwissen für echte De
     required int activityMinutes,
     required int calories,
   }) async {
-    final prompt = '''
-Berechne einen umfassenden Gesundheits-Score (0-100) basierend auf diesen Tageswerten:
-
+    return chat(
+      '''
+Berechne einen wissenschaftlich fundierten Gesundheits-Score (0-100) basierend auf:
 - BMI: ${bmi?.toStringAsFixed(1) ?? 'nicht gemessen'}
-- Wasseraufnahme: ${waterMl}ml (Empfehlung: 2500ml)
-- Schlafdauer: ${sleepHours}h (Empfehlung: 7-9h)
-- Bewegung/Sport: ${activityMinutes} Minuten (Empfehlung: 30min)
-- Kalorien: ${calories} kcal
+- Wasser: ${waterMl}ml (Empfehlung: 2500ml)
+- Schlaf: ${sleepHours}h (Empfehlung: 7-9h)
+- Bewegung: ${activityMinutes}min (Empfehlung: ≥30min)
+- Kalorien: ${calories}kcal
 
-Antworte NUR in diesem Format:
+Antworte EXAKT in diesem Format:
 
 **SCORE: [Zahl 0-100]**
 
-**📊 BEWERTUNG:**
-[2 Sätze Gesamteinschätzung]
+## 📊 Bewertung
+[2 Sätze mit wissenschaftlicher Begründung]
 
-**✅ GUT:**
-[Was gut ist]
+## ✅ Gut
+[Was gut ist und warum laut Forschung]
 
-**⚠️ VERBESSERUNGSPOTENZIAL:**
-[Was verbessert werden sollte]
+## 🎯 Verbesserung
+[Konkrete, evidenzbasierte Tipps]
 
-**💡 TOP 3 TIPPS FÜR HEUTE:**
-1. [Konkreter Tipp]
-2. [Konkreter Tipp]
-3. [Konkreter Tipp]
+## 💡 Top 3 Maßnahmen für heute
 
-**🔬 MEDIZINISCHER HINTERGRUND:**
-[Kurze Erklärung warum diese Werte wichtig sind]
-''';
-
-    return chat(prompt);
+## 🔬 Wissenschaftlicher Hintergrund
+[Studien-basierte Erklärung]
+''',
+      useSearch: true,
+    );
   }
 
-  /// Medikamenten-Info
-  static Future<GeminiResponse> getMedicationInfo(String medicationName) async {
-    final prompt = '''
-Gib mir umfassende medizinische Informationen zu diesem Medikament: "$medicationName"
+  // ── Medikamenten-Info ────────────────────────────────────────
+  static Future<GeminiResponse> getMedicationInfo(String name) async {
+    return chat(
+      '''
+Recherchiere umfassend das Medikament / den Wirkstoff: "$name"
+Nutze Google Search für neueste Informationen.
 
-**💊 WIRKSTOFF & WIRKUNG:**
-[Wie wirkt es, was macht es im Körper]
+## 💊 Wirkstoff & Pharmakologie
+## 📋 Indikationen (Anwendungsgebiete)
+## ⚠️ Nebenwirkungen (häufig / selten / sehr selten)
+## 🔄 Wechselwirkungen (Medikamente + Lebensmittel)
+## 📏 Dosierung (allgemein, kein Ersatz für Arzt!)
+## ❗ Kontraindikationen
+## 🔬 Neueste Forschungsergebnisse (laut aktuellen Studien)
 
-**📋 ANWENDUNGSGEBIETE:**
-[Wofür wird es eingesetzt]
-
-**⚠️ NEBENWIRKUNGEN:**
-[Häufige und seltene Nebenwirkungen]
-
-**🔄 WECHSELWIRKUNGEN:**
-[Mit welchen anderen Medikamenten/Lebensmitteln nicht kombinieren]
-
-**📏 DOSIERUNG (allgemein):**
-[Typische Dosierung – kein Ersatz für Beipackzettel!]
-
-**❗ KONTRAINDIKATIONEN:**
-[Wer sollte es nicht nehmen]
-
-Hinweis am Ende: Befolge immer die Anweisung deines Arztes und den Beipackzettel.
-''';
-
-    return chat(prompt);
+Quellen angeben. Hinweis: Beipackzettel und Arztanweisung beachten!
+''',
+      useSearch: true,
+    );
   }
 
-  // ── Interne Methode ────────────────────────────────────────────
-
+  // ── Interner Request-Handler ─────────────────────────────────
   static Future<GeminiResponse> _sendRequest(
     String apiKey,
-    List<Map<String, dynamic>> contents,
-  ) async {
+    List<Map<String, dynamic>> contents, {
+    bool useSearch = false,
+    bool isVision = false,
+  }) async {
     try {
-      final url = Uri.parse('$_baseUrl/$_model:generateContent?key=$apiKey');
+      final model = isVision ? _modelVision : _model;
+      final url = Uri.parse('$_baseUrl/$model:generateContent?key=$apiKey');
+
+      final body = <String, dynamic>{
+        'contents': contents,
+        'generationConfig': {
+          'temperature': 0.7,
+          'topK': 40,
+          'topP': 0.95,
+          'maxOutputTokens': 4096,
+        },
+      };
+
+      // Google Search Grounding aktivieren (kostenfrei mit gemini-2.0-flash)
+      if (useSearch) {
+        body['tools'] = [
+          {'google_search': {}}
+        ];
+      }
 
       final response = await http
           .post(
             url,
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'contents': contents,
-              'generationConfig': {
-                'temperature': 0.7,
-                'topK': 40,
-                'topP': 0.95,
-                'maxOutputTokens': 2048,
-              },
-              'safetySettings': [
-                {
-                  'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                  'threshold': 'BLOCK_ONLY_HIGH',
-                },
-                {
-                  'category': 'HARM_CATEGORY_MEDICAL',
-                  'threshold': 'BLOCK_NONE',
-                },
-              ],
-            }),
+            body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 45));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final text = data['candidates']?[0]?['content']?['parts']?[0]?['text'];
+        final text =
+            data['candidates']?[0]?['content']?['parts']?[0]?['text'];
+
+        // Quellen aus dem Grounding-Metadata extrahieren
+        final groundingMeta =
+            data['candidates']?[0]?['groundingMetadata'];
+        List<String> sources = [];
+        if (groundingMeta != null) {
+          final chunks = groundingMeta['groundingChunks'] as List? ?? [];
+          for (final chunk in chunks) {
+            final uri = chunk['web']?['uri'] as String?;
+            final title = chunk['web']?['title'] as String?;
+            if (uri != null) sources.add('[$title]($uri)');
+          }
+        }
+
         if (text != null) {
-          return GeminiResponse.success(text);
+          final fullText = sources.isNotEmpty
+              ? '$text\n\n---\n**🔗 Quellen:**\n${sources.map((s) => '- $s').join('\n')}'
+              : text;
+          return GeminiResponse.success(fullText, sources: sources);
         }
         return GeminiResponse.error('Leere Antwort von der KI.');
+      } else if (response.statusCode == 400) {
+        // Fallback ohne Search wenn Google Search nicht verfügbar
+        if (useSearch) {
+          return _sendRequest(apiKey, contents,
+              useSearch: false, isVision: isVision);
+        }
+        final error = jsonDecode(response.body);
+        return GeminiResponse.error(
+            'Fehler 400: ${error['error']?['message'] ?? 'Ungültige Anfrage'}');
       } else if (response.statusCode == 401 || response.statusCode == 403) {
         return GeminiResponse.error(
-            'Ungültiger API-Key. Bitte in Einstellungen prüfen.\n'
-            'Kostenloser Key: aistudio.google.com/app/apikey');
+            'Ungültiger API-Key.\nKostenlos holen: aistudio.google.com/app/apikey');
       } else if (response.statusCode == 429) {
         return GeminiResponse.error(
-            'Zu viele Anfragen. Kurz warten und erneut versuchen.\n'
-            '(Kostenlos: 15 Anfragen/Minute)');
+            'Zu viele Anfragen (Max. 15/Min bei kostenlosem Plan).\nKurz warten und erneut versuchen.');
       } else {
-        final error = jsonDecode(response.body);
+        final error = jsonDecode(utf8.decode(response.bodyBytes));
         return GeminiResponse.error(
             'Fehler ${response.statusCode}: ${error['error']?['message'] ?? 'Unbekannter Fehler'}');
       }
-    } on Exception catch (e) {
+    } catch (e) {
       if (e.toString().contains('TimeoutException')) {
-        return GeminiResponse.error('Zeitüberschreitung. Internetverbindung prüfen.');
+        return GeminiResponse.error(
+            'Zeitüberschreitung (45s). Internetverbindung prüfen.');
       }
       return GeminiResponse.error('Verbindungsfehler: $e');
     }
   }
+
+  static const String _noKeyError =
+      'Kein API-Key gesetzt.\nKostenlos holen: aistudio.google.com/app/apikey\n'
+      'Dann in Einstellungen (⚙️) eingeben.';
 }
 
 // ── Datenklassen ──────────────────────────────────────────────────
@@ -326,24 +385,28 @@ class GeminiResponse {
   final String? text;
   final String? error;
   final bool isSuccess;
+  final List<String> sources;
 
-  GeminiResponse.success(this.text)
+  GeminiResponse.success(this.text, {this.sources = const []})
       : error = null,
         isSuccess = true;
 
   GeminiResponse.error(this.error)
       : text = null,
-        isSuccess = false;
+        isSuccess = false,
+        sources = const [];
 }
 
 class ChatMessage {
   final String text;
   final bool isUser;
   final DateTime timestamp;
+  final bool isSearchResult;
 
   ChatMessage({
     required this.text,
     required this.isUser,
     DateTime? timestamp,
+    this.isSearchResult = false,
   }) : timestamp = timestamp ?? DateTime.now();
 }

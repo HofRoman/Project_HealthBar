@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/database_helper.dart';
 import '../models/activity_entry.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
@@ -12,99 +14,80 @@ class ActivityScreen extends StatefulWidget {
 
 class _ActivityScreenState extends State<ActivityScreen> {
   final _db = DatabaseHelper();
-  List<ActivityEntry> _todayActivities = [];
-  int _totalCalories = 0;
-  int _totalSteps = 0;
-  int _totalMinutes = 0;
+  List<ActivityEntry> _entries = [];
+  int _totalCal = 0, _totalSteps = 0, _totalMin = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     final data = await _db.getActivitiesToday();
-    final entries = data.map(ActivityEntry.fromMap).toList();
+    final list = data.map(ActivityEntry.fromMap).toList();
     setState(() {
-      _todayActivities = entries;
-      _totalCalories = entries.fold(0, (s, e) => s + e.caloriesBurned);
-      _totalSteps = entries.fold(0, (s, e) => s + e.steps);
-      _totalMinutes = entries.fold(0, (s, e) => s + e.durationMinutes);
+      _entries = list;
+      _totalCal = list.fold(0, (s, e) => s + e.caloriesBurned);
+      _totalSteps = list.fold(0, (s, e) => s + e.steps);
+      _totalMin = list.fold(0, (s, e) => s + e.durationMinutes);
     });
   }
 
-  Future<void> _delete(int id) async {
-    await _db.deleteActivity(id);
-    _load();
-  }
+  Future<void> _delete(int id) async { await _db.deleteActivity(id); _load(); }
 
-  Future<void> _showAddDialog() async {
-    String selectedType = ActivityEntry.activityTypes.first;
-    final durationController = TextEditingController();
-    final stepsController = TextEditingController();
-    double userWeight = 70.0;
+  Future<void> _showAdd() async {
+    String selType = ActivityEntry.activityTypes.first;
+    final durCtrl = TextEditingController();
+    final stepsCtrl = TextEditingController();
 
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Aktivität hinzufügen'),
+        builder: (ctx, set) => AlertDialog(
+          backgroundColor: AppTheme.bgCard,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTheme.radiusLarge)),
+          title: const Text('Aktivität hinzufügen', style: AppTheme.headline3),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  value: selectedType,
-                  decoration: const InputDecoration(
-                    labelText: 'Aktivität',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: ActivityEntry.activityTypes
-                      .map((t) => DropdownMenuItem(
-                            value: t,
-                            child: Text(t),
-                          ))
-                      .toList(),
-                  onChanged: (val) =>
-                      setDialogState(() => selectedType = val!),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: durationController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Dauer (Minuten)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: stepsController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Schritte (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                value: selType,
+                dropdownColor: AppTheme.bgCard,
+                style: AppTheme.body.copyWith(color: AppTheme.textPrimary),
+                decoration: const InputDecoration(labelText: 'Aktivität'),
+                items: ActivityEntry.activityTypes.map((t) =>
+                    DropdownMenuItem(value: t, child: Text(t))).toList(),
+                onChanged: (v) => set(() => selType = v!),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: durCtrl,
+                keyboardType: TextInputType.number,
+                style: AppTheme.body.copyWith(color: AppTheme.textPrimary),
+                decoration: const InputDecoration(labelText: 'Dauer (Minuten)'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: stepsCtrl,
+                keyboardType: TextInputType.number,
+                style: AppTheme.body.copyWith(color: AppTheme.textPrimary),
+                decoration: const InputDecoration(labelText: 'Schritte (optional)'),
+              ),
+            ]),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Abbrechen')),
+                child: const Text('Abbrechen',
+                    style: TextStyle(color: AppTheme.textSecondary))),
             ElevatedButton(
               onPressed: () {
-                final dur = int.tryParse(durationController.text) ?? 0;
+                final dur = int.tryParse(durCtrl.text) ?? 0;
                 if (dur > 0) {
-                  final calories = ActivityEntry.estimateCalories(
-                      selectedType, dur, userWeight);
-                  final steps = int.tryParse(stepsController.text) ?? 0;
+                  final cal = ActivityEntry.estimateCalories(selType, dur, 70.0);
+                  final steps = int.tryParse(stepsCtrl.text) ?? 0;
                   _db.insertActivity(ActivityEntry(
-                    activityType: selectedType,
+                    activityType: selType,
                     durationMinutes: dur,
-                    caloriesBurned: calories,
+                    caloriesBurned: cal,
                     steps: steps,
                     date: DateTime.now(),
                   ).toMap());
@@ -113,9 +96,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 }
               },
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF6B35)),
-              child: const Text('Speichern',
-                  style: TextStyle(color: Colors.white)),
+                  backgroundColor: AppTheme.colorActivity,
+                  foregroundColor: Colors.white),
+              child: const Text('Speichern'),
             ),
           ],
         ),
@@ -126,176 +109,128 @@ class _ActivityScreenState extends State<ActivityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        title: const Text('Aktivität'),
-        backgroundColor: const Color(0xFFFF6B35),
-        foregroundColor: Colors.white,
-        elevation: 0,
+        backgroundColor: AppTheme.bgCard,
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.colorActivity.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.fitness_center,
+                color: AppTheme.colorActivity, size: 18),
+          ),
+          const SizedBox(width: 10),
+          const Text('Aktivitätstracker'),
+        ]),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddDialog,
-        backgroundColor: const Color(0xFFFF6B35),
-        child: const Icon(Icons.add, color: Colors.white),
+        onPressed: _showAdd,
+        backgroundColor: AppTheme.colorActivity,
+        foregroundColor: AppTheme.bg,
+        child: const Icon(Icons.add),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Stats
-            Row(
-              children: [
-                _MiniStat(
-                  label: 'Kalorien',
-                  value: '$_totalCalories',
-                  unit: 'kcal',
-                  icon: Icons.local_fire_department,
-                  color: const Color(0xFFFF6B35),
-                ),
-                const SizedBox(width: 10),
-                _MiniStat(
-                  label: 'Zeit',
-                  value: '$_totalMinutes',
-                  unit: 'min',
-                  icon: Icons.timer,
-                  color: const Color(0xFF2196F3),
-                ),
-                const SizedBox(width: 10),
-                _MiniStat(
-                  label: 'Schritte',
-                  value: NumberFormat('#,###').format(_totalSteps),
-                  unit: '',
-                  icon: Icons.directions_walk,
-                  color: const Color(0xFF4CAF50),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (_todayActivities.isEmpty)
-              Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    children: [
-                      Icon(Icons.fitness_center,
-                          size: 64,
-                          color: Colors.grey[300]),
-                      const SizedBox(height: 12),
-                      Text('Noch keine Aktivitäten heute',
-                          style: TextStyle(color: Colors.grey[500])),
-                      const SizedBox(height: 8),
-                      Text('Tippe auf + um eine hinzuzufügen',
-                          style: TextStyle(
-                              color: Colors.grey[400], fontSize: 12)),
-                    ],
-                  ),
-                ),
-              )
-            else ...[
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Heute',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        child: Column(children: [
+          // Stats
+          Row(children: [
+            _StatTile('Kalorien', '$_totalCal', 'kcal',
+                Icons.local_fire_department, AppTheme.colorActivity),
+            const SizedBox(width: 10),
+            _StatTile('Zeit', '$_totalMin', 'min',
+                Icons.timer, AppTheme.neonBlue),
+            const SizedBox(width: 10),
+            _StatTile('Schritte', NumberFormat('#,###').format(_totalSteps), '',
+                Icons.directions_walk, AppTheme.colorScore),
+          ]),
+          const SizedBox(height: 14),
+
+          if (_entries.isEmpty)
+            GlassCard(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(children: [
+                  Icon(Icons.fitness_center, size: 64,
+                      color: AppTheme.textMuted),
+                  const SizedBox(height: 12),
+                  const Text('Noch keine Aktivitäten heute',
+                      style: AppTheme.bodyBold),
+                  const SizedBox(height: 6),
+                  const Text('Tippe auf + um eine hinzuzufügen',
+                      style: AppTheme.caption),
+                ]),
               ),
-              const SizedBox(height: 8),
-              ..._todayActivities.map((e) => Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      leading: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF6B35).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Text(
-                            e.icon,
-                            style: const TextStyle(fontSize: 24),
-                          ),
-                        ),
-                      ),
-                      title: Text(e.activityType,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold)),
-                      subtitle: Text(
-                          '${e.durationMinutes} min • ${e.caloriesBurned} kcal'
-                          '${e.steps > 0 ? ' • ${e.steps} Schritte' : ''}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            DateFormat('HH:mm').format(e.date),
-                            style: TextStyle(
-                                color: Colors.grey[500], fontSize: 12),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline,
-                                color: Colors.redAccent, size: 20),
-                            onPressed: () => _delete(e.id!),
-                          ),
-                        ],
-                      ),
+            )
+          else ...[
+            const Text('Heute', style: AppTheme.headline3),
+            const SizedBox(height: 10),
+            ..._entries.map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GlassCard(
+                glowColor: AppTheme.colorActivity,
+                glowIntensity: 0.05,
+                child: Row(children: [
+                  Container(
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.colorActivity.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: Center(
+                        child: Text(e.icon,
+                            style: const TextStyle(fontSize: 22))),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(e.activityType, style: AppTheme.bodyBold),
+                      Text('${e.durationMinutes}min • ${e.caloriesBurned}kcal'
+                          '${e.steps > 0 ? ' • ${e.steps} Schritte' : ''}',
+                          style: AppTheme.caption),
+                    ],
                   )),
-            ],
+                  Text(DateFormat('HH:mm').format(e.date),
+                      style: AppTheme.caption),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        color: AppTheme.colorFood, size: 18),
+                    onPressed: () => _delete(e.id!),
+                  ),
+                ]),
+              ),
+            )),
           ],
-        ),
+        ]),
       ),
     );
   }
 }
 
-class _MiniStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final String unit;
+class _StatTile extends StatelessWidget {
+  final String label, value, unit;
   final IconData icon;
   final Color color;
-
-  const _MiniStat({
-    required this.label,
-    required this.value,
-    required this.unit,
-    required this.icon,
-    required this.color,
-  });
+  const _StatTile(this.label, this.value, this.unit, this.icon, this.color);
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 4),
-            Text(value,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: color)),
-            Text('$label ${unit.isNotEmpty ? "($unit)" : ""}',
-                style: TextStyle(color: Colors.grey[500], fontSize: 10)),
-          ],
-        ),
+      child: GlassCard(
+        glowColor: color,
+        glowIntensity: 0.1,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(height: 6),
+          Text(value,
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.w900, fontSize: 18)),
+          Text('$label${unit.isNotEmpty ? ' ($unit)' : ''}',
+              style: AppTheme.caption.copyWith(fontSize: 10)),
+        ]),
       ),
     );
   }

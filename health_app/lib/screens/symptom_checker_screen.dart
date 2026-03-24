@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../services/gemini_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
 import 'settings_screen.dart';
 
 class SymptomCheckerScreen extends StatefulWidget {
@@ -11,123 +13,96 @@ class SymptomCheckerScreen extends StatefulWidget {
 }
 
 class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
-  final _controller = TextEditingController();
+  final _ctrl = TextEditingController();
+  final _addInfoCtrl = TextEditingController();
   final List<String> _symptoms = [];
-  final _additionalInfoController = TextEditingController();
-
   bool _isAnalyzing = false;
   String? _result;
   String? _error;
   bool _hasApiKey = false;
 
-  // Vordefinierte Symptome zum Schnellauswählen
-  static const _commonSymptoms = [
-    'Kopfschmerzen', 'Fieber', 'Müdigkeit', 'Schwindel',
-    'Übelkeit', 'Husten', 'Halsschmerzen', 'Bauchschmerzen',
-    'Rückenschmerzen', 'Atemnot', 'Herzrasen', 'Schlafprobleme',
-    'Appetitlosigkeit', 'Durchfall', 'Gelenkschmerzen', 'Hautausschlag',
-    'Taubheitsgefühl', 'Sehstörungen', 'Ohrenschmerzen', 'Brustschmerzen',
+  static const _common = [
+    'Kopfschmerzen', 'Fieber', 'Müdigkeit', 'Schwindel', 'Übelkeit',
+    'Husten', 'Halsschmerzen', 'Bauchschmerzen', 'Rückenschmerzen',
+    'Atemnot', 'Herzrasen', 'Schlafprobleme', 'Appetitlosigkeit',
+    'Durchfall', 'Gelenkschmerzen', 'Hautausschlag', 'Brustschmerzen',
+    'Taubheitsgefühl', 'Sehstörungen', 'Ohrenschmerzen',
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _checkApiKey();
-  }
+  void initState() { super.initState(); _check(); }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    _additionalInfoController.dispose();
-    super.dispose();
-  }
+  void dispose() { _ctrl.dispose(); _addInfoCtrl.dispose(); super.dispose(); }
 
-  Future<void> _checkApiKey() async {
+  Future<void> _check() async {
     final has = await GeminiService.hasApiKey();
     setState(() => _hasApiKey = has);
   }
 
-  void _addSymptom(String symptom) {
-    final s = symptom.trim();
-    if (s.isEmpty || _symptoms.contains(s)) return;
-    setState(() {
-      _symptoms.add(s);
-      _result = null;
-    });
+  void _add(String s) {
+    final t = s.trim();
+    if (t.isEmpty || _symptoms.contains(t)) return;
+    setState(() { _symptoms.add(t); _result = null; });
   }
 
-  void _removeSymptom(String symptom) {
-    setState(() {
-      _symptoms.remove(symptom);
-      _result = null;
-    });
-  }
+  void _remove(String s) => setState(() { _symptoms.remove(s); _result = null; });
 
   Future<void> _analyze() async {
     if (_symptoms.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bitte mindestens ein Symptom hinzufügen.'),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: const Text('Mindestens ein Symptom hinzufügen'),
+          backgroundColor: AppTheme.bgCard,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTheme.radiusSmall)),
         ),
       );
       return;
     }
+    if (!_hasApiKey) { _showNoKey(); return; }
 
-    if (!_hasApiKey) {
-      _showNoKeyDialog();
-      return;
-    }
-
-    setState(() {
-      _isAnalyzing = true;
-      _result = null;
-      _error = null;
-    });
-
-    final additional = _additionalInfoController.text.trim().isNotEmpty
-        ? _additionalInfoController.text.trim()
-        : null;
-
-    final response = await GeminiService.checkSymptoms(
+    setState(() { _isAnalyzing = true; _result = null; _error = null; });
+    final r = await GeminiService.checkSymptoms(
       _symptoms,
-      additionalInfo: additional,
+      additionalInfo: _addInfoCtrl.text.trim().isNotEmpty
+          ? _addInfoCtrl.text.trim()
+          : null,
     );
-
     setState(() {
       _isAnalyzing = false;
-      if (response.isSuccess) {
-        _result = response.text;
-      } else {
-        _error = response.error;
-      }
+      if (r.isSuccess) _result = r.text; else _error = r.error;
     });
   }
 
-  void _showNoKeyDialog() {
+  void _showNoKey() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('API-Key benötigt'),
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLarge)),
+        title: const Text('API-Key benötigt', style: AppTheme.headline3),
         content: const Text(
-          'Für den Symptom-Checker wird ein kostenloser Gemini API-Key benötigt.\n\n'
-          'Kostenlos holen: aistudio.google.com/app/apikey',
-        ),
+            'Für Deep Research wird ein kostenloser Gemini Key benötigt.',
+            style: AppTheme.body),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Abbrechen')),
+              child: const Text('Abbrechen',
+                  style: TextStyle(color: AppTheme.textSecondary))),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const SettingsScreen()))
-                  .then((_) => _checkApiKey());
+                  .then((_) => _check());
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE91E63)),
-            child: const Text('Einrichten',
-                style: TextStyle(color: Colors.white)),
+                backgroundColor: AppTheme.colorSymptom,
+                foregroundColor: Colors.white),
+            child: const Text('Einrichten'),
           ),
         ],
       ),
@@ -137,170 +112,177 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        title: const Text('Symptom-Checker'),
-        backgroundColor: const Color(0xFFE91E63),
-        foregroundColor: Colors.white,
-        elevation: 0,
+        backgroundColor: AppTheme.bgCard,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.colorSymptom.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.medical_information,
+                  color: AppTheme.colorSymptom, size: 18),
+            ),
+            const SizedBox(width: 10),
+            const Text('Symptom-Checker'),
+          ],
+        ),
         actions: [
           if (_symptoms.isNotEmpty || _result != null)
             IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () {
-                setState(() {
-                  _symptoms.clear();
-                  _result = null;
-                  _error = null;
-                  _additionalInfoController.clear();
-                });
-              },
+              icon: const Icon(Icons.refresh, color: AppTheme.textSecondary),
+              onPressed: () => setState(() {
+                _symptoms.clear(); _result = null;
+                _error = null; _addInfoCtrl.clear();
+              }),
             ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Eingabe-Bereich
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Deine Symptome',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    // Eingabe-Feld
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            decoration: InputDecoration(
-                              hintText: 'Symptom eingeben...',
-                              prefixIcon: const Icon(Icons.add_circle_outline,
-                                  color: Color(0xFFE91E63)),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                    color: Color(0xFFE91E63), width: 2),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                            ),
-                            onSubmitted: _addSymptom,
-                            textInputAction: TextInputAction.done,
+            // Eingabe
+            GlassCard(
+              glowColor: AppTheme.colorSymptom,
+              glowIntensity: 0.1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Symptome eingeben', style: AppTheme.bodyBold),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _ctrl,
+                          style: AppTheme.body
+                              .copyWith(color: AppTheme.textPrimary),
+                          decoration: const InputDecoration(
+                            hintText: 'Symptom eingeben...',
+                            prefixIcon: Icon(Icons.add,
+                                color: AppTheme.colorSymptom, size: 18),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () {
-                            _addSymptom(_controller.text);
-                            _controller.clear();
+                          onSubmitted: (v) {
+                            _add(v); _ctrl.clear();
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE91E63),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 14, horizontal: 16),
-                          ),
-                          child: const Text('+ Hinzu'),
+                          textInputAction: TextInputAction.done,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    // Ausgewählte Symptome
-                    if (_symptoms.isNotEmpty) ...[
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _symptoms
-                            .map((s) => _SymptomChip(
-                                  label: s,
-                                  onDelete: () => _removeSymptom(s),
-                                ))
-                            .toList(),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () { _add(_ctrl.text); _ctrl.clear(); },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.colorSymptom,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                  AppTheme.radiusSmall)),
+                        ),
+                        child: const Text('+ Add'),
+                      ),
                     ],
-                    // Zusatzinfo
-                    TextField(
-                      controller: _additionalInfoController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        hintText:
-                            'Zusatzinfo (optional): Alter, Vorerkrankungen, seit wann...',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.all(12),
-                      ),
+                  ),
+                  if (_symptoms.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _symptoms
+                          .map((s) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color:
+                                      AppTheme.colorSymptom.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color: AppTheme.colorSymptom
+                                          .withOpacity(0.5)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(s,
+                                        style: const TextStyle(
+                                            color: AppTheme.textPrimary,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600)),
+                                    const SizedBox(width: 6),
+                                    GestureDetector(
+                                      onTap: () => _remove(s),
+                                      child: const Icon(Icons.close,
+                                          size: 14,
+                                          color: AppTheme.colorSymptom),
+                                    ),
+                                  ],
+                                ),
+                              ))
+                          .toList(),
                     ),
                   ],
-                ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _addInfoCtrl,
+                    maxLines: 2,
+                    style:
+                        AppTheme.body.copyWith(color: AppTheme.textPrimary),
+                    decoration: const InputDecoration(
+                      hintText:
+                          'Zusatzinfo (optional): Alter, Dauer, Vorerkrankungen...',
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             // Häufige Symptome
-            const Text('Häufige Symptome',
-                style:
-                    TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
+            const Text('Häufige Symptome', style: AppTheme.headline3),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _commonSymptoms.map((s) {
-                final selected = _symptoms.contains(s);
+              children: _common.map((s) {
+                final sel = _symptoms.contains(s);
                 return GestureDetector(
-                  onTap: () =>
-                      selected ? _removeSymptom(s) : _addSymptom(s),
-                  child: Container(
+                  onTap: () => sel ? _remove(s) : _add(s),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: selected
-                          ? const Color(0xFFE91E63)
-                          : Colors.white,
+                      color: sel
+                          ? AppTheme.colorSymptom
+                          : AppTheme.glassWhite,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: selected
-                            ? const Color(0xFFE91E63)
-                            : Colors.grey.shade300,
-                      ),
-                      boxShadow: [
-                        if (!selected)
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                      ],
-                    ),
-                    child: Text(
-                      s,
-                      style: TextStyle(
-                        color: selected ? Colors.white : Colors.grey[700],
-                        fontSize: 13,
-                        fontWeight: selected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                        color: sel
+                            ? AppTheme.colorSymptom
+                            : AppTheme.glassBorder,
                       ),
                     ),
+                    child: Text(s,
+                        style: TextStyle(
+                          color: sel
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                          fontSize: 13,
+                          fontWeight: sel
+                              ? FontWeight.w700
+                              : FontWeight.normal,
+                        )),
                   ),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Analyse-Button
             SizedBox(
@@ -309,57 +291,47 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
                 onPressed: _isAnalyzing ? null : _analyze,
                 icon: _isAnalyzing
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 18, height: 18,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Icon(Icons.search),
-                label: Text(
-                  _isAnalyzing
-                      ? 'KI analysiert (Deep Research)...'
-                      : 'KI-Analyse starten (${_symptoms.length} Symptome)',
-                ),
+                            color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.biotech, size: 18),
+                label: Text(_isAnalyzing
+                    ? 'Deep Research läuft...'
+                    : 'KI-Analyse (${_symptoms.length} Symptome)'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _symptoms.isEmpty
-                      ? Colors.grey
-                      : const Color(0xFFE91E63),
+                      ? AppTheme.textMuted
+                      : AppTheme.colorSymptom,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  textStyle: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusMid)),
                 ),
               ),
             ),
 
-            // Ladeindikator
+            // Lade-State
             if (_isAnalyzing) ...[
-              const SizedBox(height: 20),
-              Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      const CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFFE91E63))),
-                      const SizedBox(height: 16),
-                      const Text('Deep Research läuft...',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16)),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Die KI durchsucht medizinisches Wissen\nund erstellt eine detaillierte Analyse.',
-                        style: TextStyle(
-                            color: Colors.grey[500], fontSize: 13),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 16),
+              GlassCard(
+                glowColor: AppTheme.colorSymptom,
+                glowIntensity: 0.25,
+                child: Column(
+                  children: [
+                    const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.colorSymptom)),
+                    const SizedBox(height: 14),
+                    const Text('Deep Research läuft...',
+                        style: AppTheme.bodyBold),
+                    const SizedBox(height: 6),
+                    Text(
+                      'KI durchsucht PubMed, WHO, Cochrane\nund kompiliert medizinische Ergebnisse',
+                      style: AppTheme.caption,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -367,140 +339,78 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
             // Fehler
             if (_error != null) ...[
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFEBEE),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: Text(_error!,
-                            style:
-                                const TextStyle(color: Colors.red))),
-                  ],
-                ),
+              GlassCard(
+                glowColor: AppTheme.colorFood,
+                child: Row(children: [
+                  const Icon(Icons.error_outline,
+                      color: AppTheme.colorFood),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: Text(_error!,
+                          style: const TextStyle(
+                              color: AppTheme.colorFood))),
+                ]),
               ),
             ],
 
             // Ergebnis
             if (_result != null) ...[
               const SizedBox(height: 16),
-              Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE91E63).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.medical_information,
-                                color: Color(0xFFE91E63), size: 20),
-                          ),
-                          const SizedBox(width: 10),
-                          const Text(
-                            'Medizinische Deep Research',
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 20),
-                      MarkdownBody(
-                        data: _result!,
-                        styleSheet: MarkdownStyleSheet(
-                          h2: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFE91E63)),
-                          p: const TextStyle(
-                              fontSize: 14, height: 1.5),
-                          listBullet:
-                              const TextStyle(fontSize: 14),
-                          strong: const TextStyle(
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.warning_amber,
-                                color: Colors.red, size: 20),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'WICHTIG: Diese Analyse ist kein Ersatz für einen '
-                                'Arztbesuch. Bei ernsthaften Symptomen sofort medizinische Hilfe suchen!',
-                                style: TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+              Row(
+                children: [
+                  NeonBadge(
+                      label: 'DEEP RESEARCH',
+                      color: AppTheme.colorSymptom),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.search,
+                      size: 14, color: AppTheme.colorResearch),
+                  const SizedBox(width: 4),
+                  Text('Google Search aktiv',
+                      style: AppTheme.caption.copyWith(
+                          color: AppTheme.colorResearch)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              GlassCard(
+                glowColor: AppTheme.colorSymptom,
+                glowIntensity: 0.12,
+                padding: const EdgeInsets.all(18),
+                child: MarkdownBody(
+                  data: _result!,
+                  styleSheet: MarkdownStyleSheet(
+                    h2: AppTheme.headline3.copyWith(
+                        color: AppTheme.colorSymptom),
+                    h3: AppTheme.bodyBold
+                        .copyWith(color: AppTheme.neonBlue),
+                    p: AppTheme.body.copyWith(
+                        color: AppTheme.textPrimary, height: 1.6),
+                    strong: AppTheme.bodyBold,
+                    listBullet: AppTheme.body
+                        .copyWith(color: AppTheme.textPrimary),
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              GlassCard(
+                hasBorder: false,
+                padding: const EdgeInsets.all(12),
+                child: Row(children: [
+                  const Icon(Icons.warning_amber,
+                      color: AppTheme.colorActivity, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Diese KI-Analyse ersetzt keinen Arztbesuch. '
+                      'Bei ernsthaften Symptomen sofort medizinische Hilfe!',
+                      style: AppTheme.caption.copyWith(
+                          color: AppTheme.colorActivity),
+                    ),
+                  ),
+                ]),
+              ),
             ],
-            const SizedBox(height: 32),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SymptomChip extends StatelessWidget {
-  final String label;
-  final VoidCallback onDelete;
-
-  const _SymptomChip({required this.label, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE91E63),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500)),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: onDelete,
-            child: const Icon(Icons.close, color: Colors.white, size: 16),
-          ),
-        ],
       ),
     );
   }
