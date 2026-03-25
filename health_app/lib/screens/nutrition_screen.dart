@@ -209,7 +209,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     AppTheme.neonBlue),
                 const SizedBox(width: 8),
                 _MacroTile('Kohlenh.', '${_totalCarbs.toStringAsFixed(0)}g',
-                    const Color(0xFFFFB300)),
+                    AppTheme.grey70),
                 const SizedBox(width: 8),
                 _MacroTile('Fett', '${_totalFat.toStringAsFixed(0)}g',
                     AppTheme.colorSleep),

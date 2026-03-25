@@ -44,7 +44,7 @@ class _BmiScreenState extends State<BmiScreen> {
   Color _color(double b) {
     if (b < 18.5) return AppTheme.neonBlue;
     if (b < 25)   return AppTheme.neonGreen;
-    if (b < 30)   return const Color(0xFFFFB300);
+    if (b < 30)   return AppTheme.grey70;
     return AppTheme.colorFood;
   }
 
@@ -216,7 +216,7 @@ class _BmiScale extends StatelessWidget {
     const segments = [
       ('< 18.5\nUntergewicht', AppTheme.neonBlue),
       ('18.5–24.9\nNormal', AppTheme.neonGreen),
-      ('25–29.9\nÜbergewicht', Color(0xFFFFB300)),
+      ('25–29.9\nÜbergewicht', AppTheme.grey70),
       ('≥ 30\nAdiposi.', AppTheme.colorFood),
     ];
     return Column(children: [

@@ -329,13 +329,13 @@ Füge am Ende immer hinzu: "**Notruf: 112 (EU) | 110 (Polizei) | Giftnotruf: 030
           const SizedBox(height: 20),
           // Hinweis
           GlassCard(
-            glowColor: const Color(0xFFFFB300),
+            glowColor: AppTheme.grey70,
             glowIntensity: 0.08,
             child: const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.info_outline,
-                    color: Color(0xFFFFB300), size: 16),
+                    color: AppTheme.grey70, size: 16),
                 SizedBox(width: 8),
                 Expanded(child: Text(
                   'Diese App ersetzt keinen Erste-Hilfe-Kurs. Alle 2 Jahre auffrischen! '

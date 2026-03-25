@@ -197,7 +197,7 @@ class _VitalsScreenState extends State<VitalsScreen>
             // Referenztabelle
             _BpRefRow('Optimal', '< 120/80', AppTheme.neonGreen),
             _BpRefRow('Normal', '< 130/85', AppTheme.neon),
-            _BpRefRow('Hochnormal', '< 140/90', const Color(0xFFFFB300)),
+            _BpRefRow('Hochnormal', '< 140/90', AppTheme.grey70),
             _BpRefRow('Hypertonie', '≥ 140/90', AppTheme.colorFood),
           ]),
         ),
@@ -251,7 +251,7 @@ class _VitalsScreenState extends State<VitalsScreen>
             Row(children: [
               _TempRef('< 36.1°', 'Hypothermie', AppTheme.neonBlue),
               _TempRef('36.1–37.2°', 'Normal', AppTheme.neonGreen),
-              _TempRef('37.3–38°', 'Erhöht', const Color(0xFFFFB300)),
+              _TempRef('37.3–38°', 'Erhöht', AppTheme.grey70),
               _TempRef('> 38°', 'Fieber', AppTheme.colorFood),
             ]),
           ]),
@@ -373,7 +373,7 @@ class _VitalsScreenState extends State<VitalsScreen>
   Color _bpColor(int sys, int dia) {
     if (sys < 120 && dia < 80) return AppTheme.neonGreen;
     if (sys < 130 && dia < 85) return AppTheme.neon;
-    if (sys < 140 && dia < 90) return const Color(0xFFFFB300);
+    if (sys < 140 && dia < 90) return AppTheme.grey70;
     return AppTheme.colorFood;
   }
 }

@@ -293,11 +293,11 @@ Nutze aktuelle wissenschaftliche Erkenntnisse (WHO-Leitlinien, Cochrane Reviews 
 
       // Hinweise
       GlassCard(
-        glowColor: const Color(0xFFFFB300),
+        glowColor: AppTheme.grey70,
         glowIntensity: 0.12,
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Icon(Icons.warning_amber_rounded,
-              color: Color(0xFFFFB300), size: 22),
+              color: AppTheme.grey70, size: 22),
           const SizedBox(width: 10),
           const Expanded(child: Text(
             'Dieser Bericht ersetzt keine ärztliche Beratung. Konsultiere bei gesundheitlichen Problemen immer einen Arzt.',
