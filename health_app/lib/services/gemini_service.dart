@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 
 /// Google Gemini 2.0 Flash API Service
 /// KOMPLETT KOSTENLOS:
@@ -9,12 +10,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///   - Kein Abo, keine Kreditkarte
 /// API Key holen: https://aistudio.google.com/app/apikey
 class GeminiService {
-  // gemini-2.0-flash unterstützt Google Search Grounding (kostenlos)
   static const String _model       = 'gemini-2.0-flash';
   static const String _modelVision = 'gemini-2.0-flash';
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
   static const String _apiKeyPref = 'gemini_api_key';
+
+  // Rate-Limiting: max 15 Anfragen/Minute → mind. 4s Abstand
+  static DateTime? _lastRequestTime;
+  static const _minDelay = Duration(seconds: 4);
 
   // ── Medizinischer System-Prompt ──────────────────────────────
   static const String _systemPrompt = '''
@@ -40,9 +44,16 @@ VERHALTENSREGELN:
 ''';
 
   // ── API Key Management ──────────────────────────────────────
+
+  /// Gibt den aktiven API-Key zurück.
+  /// Priorität: 1. In Einstellungen gespeicherter Key
+  ///            2. Eingebetteter Key aus api_config.dart
   static Future<String?> getSavedApiKey() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_apiKeyPref);
+    final stored = prefs.getString(_apiKeyPref);
+    if (stored != null && stored.trim().isNotEmpty) return stored.trim();
+    if (ApiConfig.isConfigured) return ApiConfig.geminiApiKey;
+    return null;
   }
 
   static Future<void> saveApiKey(String key) async {
@@ -51,6 +62,7 @@ VERHALTENSREGELN:
   }
 
   static Future<bool> hasApiKey() async {
+    if (ApiConfig.isConfigured) return true;
     final key = await getSavedApiKey();
     return key != null && key.trim().isNotEmpty;
   }
@@ -290,8 +302,19 @@ Quellen angeben. Hinweis: Beipackzettel und Arztanweisung beachten!
     List<Map<String, dynamic>> contents, {
     bool useSearch = false,
     bool isVision = false,
+    int _retryCount = 0,
   }) async {
     try {
+      // Rate-Limiting: mind. 4s zwischen Anfragen (max 15/min)
+      final now = DateTime.now();
+      if (_lastRequestTime != null) {
+        final elapsed = now.difference(_lastRequestTime!);
+        if (elapsed < _minDelay) {
+          await Future.delayed(_minDelay - elapsed);
+        }
+      }
+      _lastRequestTime = DateTime.now();
+
       final model = isVision ? _modelVision : _model;
       final url = Uri.parse('$_baseUrl/$model:generateContent?key=$apiKey');
 
@@ -358,8 +381,17 @@ Quellen angeben. Hinweis: Beipackzettel und Arztanweisung beachten!
         return GeminiResponse.error(
             'Ungültiger API-Key.\nKostenlos holen: aistudio.google.com/app/apikey');
       } else if (response.statusCode == 429) {
+        // Automatischer Retry mit Backoff: 15s, 30s, 60s
+        if (_retryCount < 3) {
+          final waitSeconds = [15, 30, 60][_retryCount];
+          await Future.delayed(Duration(seconds: waitSeconds));
+          return _sendRequest(apiKey, contents,
+              useSearch: useSearch,
+              isVision: isVision,
+              _retryCount: _retryCount + 1);
+        }
         return GeminiResponse.error(
-            'Zu viele Anfragen (Max. 15/Min bei kostenlosem Plan).\nKurz warten und erneut versuchen.');
+            'Zu viele Anfragen. Bitte warte kurz und versuche es erneut.');
       } else {
         final error = jsonDecode(utf8.decode(response.bodyBytes));
         return GeminiResponse.error(
