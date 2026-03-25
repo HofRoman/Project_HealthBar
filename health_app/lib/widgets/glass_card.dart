@@ -2,12 +2,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Professionelle Karte — seriöses klinisches Design
-/// Dezente Tiefe statt Neon-Glow
+/// iOS 26 Liquid Glass Card
+/// Frosted glass mit BackdropFilter — wie native iOS UIKit
 class GlassCard extends StatelessWidget {
   final Widget child;
-  final Color? glowColor;      // Akzentfarbe für linken Rand-Streifen
-  final double glowIntensity;  // Kept for API compatibility
+  final Color? glowColor;     // Wird als Icon-Akzentfarbe genutzt (kein Glow)
+  final double glowIntensity; // Unused, kept for API compatibility
   final VoidCallback? onTap;
   final EdgeInsets? padding;
   final LinearGradient? gradient;
@@ -26,69 +26,66 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final r = borderRadius ?? AppTheme.radiusMid.toDouble();
-    final hasAccent = glowColor != null;
+    final r = borderRadius ?? AppTheme.radiusLarge.toDouble();
 
-    Widget card = Container(
-      decoration: BoxDecoration(
-        color: gradient == null ? AppTheme.bgCard : null,
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(r),
-        border: Border.all(color: AppTheme.glassBorder, width: 1),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(r),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Linker Akzent-Streifen (diskret, 3px)
-            if (hasAccent)
-              Container(
-                width: 3,
-                color: glowColor!.withOpacity(0.65),
-              ),
-            Expanded(
-              child: Padding(
-                padding: padding ?? const EdgeInsets.all(16),
-                child: child,
-              ),
+    Widget content = ClipRRect(
+      borderRadius: BorderRadius.circular(r),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: gradient == null ? AppTheme.glassFill : null,
+            gradient: gradient ?? LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.07),
+                Colors.white.withOpacity(0.03),
+              ],
             ),
-          ],
+            borderRadius: BorderRadius.circular(r),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.10),
+              width: 0.5,
+            ),
+          ),
+          child: Padding(
+            padding: padding ?? const EdgeInsets.all(16),
+            child: child,
+          ),
         ),
       ),
     );
 
     if (onTap != null) {
-      card = Material(
+      content = Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(r),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(r),
-          splashColor: (glowColor ?? AppTheme.primary).withOpacity(0.06),
-          highlightColor: (glowColor ?? AppTheme.primary).withOpacity(0.04),
-          child: card,
+          splashColor: (glowColor ?? AppTheme.iosBlue).withOpacity(0.08),
+          highlightColor: Colors.white.withOpacity(0.03),
+          child: content,
         ),
       );
     }
 
-    return card;
+    return content;
   }
 }
 
-/// Dezenter horizontaler Trennstrich
+/// iOS-Separator — haarfein
 class NeonDivider extends StatelessWidget {
   final Color color;
-  const NeonDivider({super.key, this.color = AppTheme.glassBorder});
+  const NeonDivider({super.key, this.color = AppTheme.separator});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(height: 1, color: color);
-  }
+  Widget build(BuildContext context) =>
+      Container(height: 0.5, color: color);
 }
 
-/// Status-Badge — professionell, klar
+/// iOS-Style Badge
 class NeonBadge extends StatelessWidget {
   final String label;
   final Color color;
@@ -97,33 +94,33 @@ class NeonBadge extends StatelessWidget {
   const NeonBadge(
     this.label, {
     super.key,
-    this.color = AppTheme.primary,
+    this.color = AppTheme.iosBlue,
     this.filled = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: filled ? color : color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.35), width: 1),
+        color: filled ? color : color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3), width: 0.5),
       ),
       child: Text(
-        label.toUpperCase(),
+        label,
         style: TextStyle(
           color: filled ? Colors.white : color,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
         ),
       ),
     );
   }
 }
 
-/// Status-Punkt (aktiv / inaktiv)
+/// Status-Indikator
 class PulseDot extends StatefulWidget {
   final Color color;
   final double size;
@@ -131,7 +128,7 @@ class PulseDot extends StatefulWidget {
 
   const PulseDot({
     super.key,
-    this.color = AppTheme.success,
+    this.color = AppTheme.iosGreen,
     this.size = 8,
     this.pulse = true,
   });
@@ -150,10 +147,10 @@ class _PulseDotState extends State<PulseDot>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.45, end: 1.0)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _anim = Tween<double>(begin: 0.4, end: 1.0).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -169,8 +166,7 @@ class _PulseDotState extends State<PulseDot>
   }
 
   Widget _dot(double opacity) => Container(
-    width: widget.size,
-    height: widget.size,
+    width: widget.size, height: widget.size,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: widget.color.withOpacity(opacity),
@@ -184,26 +180,20 @@ class GradientText extends StatelessWidget {
   final TextStyle style;
   final Gradient gradient;
 
-  const GradientText(
-    this.text, {
-    super.key,
-    required this.style,
-    required this.gradient,
-  });
+  const GradientText(this.text, {super.key, required this.style, required this.gradient});
 
   @override
   Widget build(BuildContext context) {
     return ShaderMask(
       blendMode: BlendMode.srcIn,
       shaderCallback: (bounds) => gradient.createShader(
-        Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-      ),
+          Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
       child: Text(text, style: style),
     );
   }
 }
 
-/// Professioneller Fortschrittsbalken
+/// iOS-Style Fortschrittsbalken
 class NeonProgressBar extends StatelessWidget {
   final double value;
   final Color color;
@@ -214,7 +204,7 @@ class NeonProgressBar extends StatelessWidget {
     super.key,
     required this.value,
     required this.color,
-    this.height = 5,
+    this.height = 4,
     this.showBackground = true,
   });
 
@@ -225,7 +215,7 @@ class NeonProgressBar extends StatelessWidget {
       child: LinearProgressIndicator(
         value: value.clamp(0.0, 1.0),
         backgroundColor:
-            showBackground ? color.withOpacity(0.12) : Colors.transparent,
+            showBackground ? color.withOpacity(0.15) : Colors.transparent,
         valueColor: AlwaysStoppedAnimation<Color>(color),
         minHeight: height,
       ),
@@ -233,7 +223,7 @@ class NeonProgressBar extends StatelessWidget {
   }
 }
 
-/// Daten-Zeile — Label links, Wert rechts
+/// Daten-Zeile (Label + Wert)
 class DataRow extends StatelessWidget {
   final String label;
   final String value;
@@ -251,19 +241,15 @@ class DataRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(children: [
         if (icon != null) ...[
-          Icon(icon, size: 14, color: AppTheme.textMuted),
-          const SizedBox(width: 6),
+          Icon(icon, size: 15, color: AppTheme.textMuted),
+          const SizedBox(width: 8),
         ],
         Expanded(child: Text(label, style: AppTheme.caption)),
-        Text(
-          value,
-          style: AppTheme.monoValue.copyWith(
-            color: valueColor ?? AppTheme.textPrimary,
-          ),
-        ),
+        Text(value, style: AppTheme.monoValue.copyWith(
+            color: valueColor ?? AppTheme.textPrimary)),
       ]),
     );
   }

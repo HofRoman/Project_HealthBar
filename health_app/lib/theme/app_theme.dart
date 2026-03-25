@@ -1,83 +1,96 @@
 import 'package:flutter/material.dart';
 
-/// HealthBar Design System — Professional Medical Edition
-/// Klinisches, seriöses Design für medizinische Anwendungen
+/// HealthBar — iOS 26 Liquid Glass Design System
 class AppTheme {
-  // ── Hintergrund-Palette ─────────────────────────────────────
-  static const Color bg         = Color(0xFF07101E);  // Tiefes Marineblau
-  static const Color bgCard     = Color(0xFF0D1926);  // Karten-Hintergrund
-  static const Color bgSurface  = Color(0xFF112135);  // Oberflächen-Ebene
+  // ── Hintergrundfarben (iOS Dark) ─────────────────────────────
+  static const Color bg         = Color(0xFF000000);   // Pure Black (OLED)
+  static const Color bgCard     = Color(0xFF1C1C1E);   // iOS systemBackground
+  static const Color bgSurface  = Color(0xFF2C2C2E);   // iOS secondarySystemBackground
+  static const Color bgTertiary = Color(0xFF3A3A3C);   // iOS tertiarySystemBackground
 
-  // ── Primär-Akzente (Medizinisch-Blau) ───────────────────────
-  static const Color primary    = Color(0xFF2A7DE1);  // Medizinblau
-  static const Color primaryDim = Color(0xFF1A5CA8);  // Gedämpft
-  static const Color accent     = Color(0xFF10A899);  // Klinisches Türkis
+  // ── iOS System Colors ────────────────────────────────────────
+  static const Color iosBlue    = Color(0xFF0A84FF);
+  static const Color iosGreen   = Color(0xFF30D158);
+  static const Color iosRed     = Color(0xFFFF453A);
+  static const Color iosOrange  = Color(0xFFFF9F0A);
+  static const Color iosPurple  = Color(0xFFBF5AF2);
+  static const Color iosTeal    = Color(0xFF40C8E0);
+  static const Color iosIndigo  = Color(0xFF5E5CE6);
+  static const Color iosPink    = Color(0xFFFF375F);
+  static const Color iosYellow  = Color(0xFFFFD60A);
 
-  // ── Semantische Farben ───────────────────────────────────────
-  static const Color success    = Color(0xFF1A9B6C);  // Klinisches Grün
-  static const Color warning    = Color(0xFFD4820A);  // Bernstein
-  static const Color danger     = Color(0xFFB93030);  // Medizinrot
-  static const Color info       = Color(0xFF1F6FA3);  // Informationsblau
+  // ── Text (iOS Standard) ──────────────────────────────────────
+  static const Color textPrimary   = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0x99EBEBF5);  // 60% white
+  static const Color textMuted     = Color(0x4DEBEBF5);  // 30% white
+  static const Color separator     = Color(0x14545458);  // iOS separator
 
-  // ── Text ────────────────────────────────────────────────────
-  static const Color textPrimary   = Color(0xFFDDE6F0);  // Primärtext
-  static const Color textSecondary = Color(0xFF6B8299);  // Sekundärtext
-  static const Color textMuted     = Color(0xFF3D5166);  // Gedämpft
+  // ── Glas/Fill ────────────────────────────────────────────────
+  static const Color glassFill    = Color(0x14FFFFFF);   // iOS fill
+  static const Color glassBorder  = Color(0x18FFFFFF);   // iOS border
+  static const Color glassWhite   = Color(0x0AFFFFFF);
+  static const Color glassWhite20 = Color(0x1AFFFFFF);
 
-  // ── Glas/Border ─────────────────────────────────────────────
-  static const Color glassWhite   = Color(0x08FFFFFF);  // 3%
-  static const Color glassBorder  = Color(0x0FFFFFFF);  // 6%
-  static const Color glassWhite20 = Color(0x14FFFFFF);  // 8%
+  // ── Compatibility Aliases (für bestehende Screens) ───────────
+  static const Color primary    = iosBlue;
+  static const Color accent     = iosTeal;
+  static const Color success    = iosGreen;
+  static const Color warning    = iosOrange;
+  static const Color danger     = iosRed;
+  static const Color info       = iosIndigo;
+  static const Color neon       = iosTeal;
+  static const Color neonGreen  = iosGreen;
+  static const Color neonBlue   = iosBlue;
+  static const Color neonPurple = iosPurple;
 
-  // ── Modul-Farben (gedämpft, professionell) ───────────────────
-  static const Color colorBmi      = Color(0xFF2A7DE1);  // Blau
-  static const Color colorWater    = Color(0xFF1A7EC8);  // Wasserblau
-  static const Color colorActivity = Color(0xFFB85B28);  // Terrakotta
-  static const Color colorSleep    = Color(0xFF6355A0);  // Dunkellila
-  static const Color colorFood     = Color(0xFFA83535);  // Dunkelrot
-  static const Color colorAI       = Color(0xFF2952A3);  // Tiefblau
-  static const Color colorFace     = Color(0xFF177B6B);  // Dunkeltürkis
-  static const Color colorSymptom  = Color(0xFF8C2952);  // Dunkelpink
-  static const Color colorScore    = Color(0xFF1A7A52);  // Dunkelgrün
-  static const Color colorResearch = Color(0xFF8A7020);  // Dunkelgold
-  static const Color colorVitals   = Color(0xFF993060);  // Dunkelrosa
-  static const Color colorMeds     = Color(0xFF5B3D99);  // Dunkelviolett
-  static const Color colorReport   = Color(0xFF1A6E80);  // Dunkeltürkis
-  static const Color colorEmergency= Color(0xFFA82020);  // Dunkelrot
+  // ── Modul-Farben ─────────────────────────────────────────────
+  static const Color colorBmi       = iosBlue;
+  static const Color colorWater     = iosTeal;
+  static const Color colorActivity  = iosOrange;
+  static const Color colorSleep     = iosPurple;
+  static const Color colorFood      = iosRed;
+  static const Color colorAI        = iosIndigo;
+  static const Color colorFace      = iosTeal;
+  static const Color colorSymptom   = iosPink;
+  static const Color colorScore     = iosGreen;
+  static const Color colorResearch  = iosYellow;
+  static const Color colorVitals    = iosPink;
+  static const Color colorMeds      = iosPurple;
+  static const Color colorReport    = iosTeal;
+  static const Color colorEmergency = iosRed;
 
-  // ── Radien ──────────────────────────────────────────────────
-  static const double radiusSmall = 8;
-  static const double radiusMid   = 12;
-  static const double radiusLarge = 16;
-  static const double radiusXL    = 20;
+  // ── Radien (iOS 26 — sehr rund) ──────────────────────────────
+  static const double radiusSmall = 10;
+  static const double radiusMid   = 14;
+  static const double radiusLarge = 20;
+  static const double radiusXL    = 28;
 
-  // ── Schatten (kein Neon-Glow, nur subtile Tiefe) ────────────
+  // ── Schatten (iOS — weich, kein Neon) ───────────────────────
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withOpacity(0.35),
-      blurRadius: 12,
+      color: Colors.black.withOpacity(0.3),
+      blurRadius: 20,
       offset: const Offset(0, 4),
     ),
   ];
 
-  /// Sehr dezenter farbiger Schatten (nur für aktive Elemente)
   static List<BoxShadow> subtleGlow(Color color) => [
     BoxShadow(
-      color: color.withOpacity(0.12),
-      blurRadius: 14,
-      spreadRadius: -2,
+      color: color.withOpacity(0.2),
+      blurRadius: 16,
+      spreadRadius: -4,
     ),
   ];
 
-  // Aliase für Abwärtskompatibilität
-  static List<BoxShadow> glow(Color color, {double intensity = 0.3}) =>
+  // Compatibility alias
+  static List<BoxShadow> glow(Color color, {double intensity = 0.2}) =>
       subtleGlow(color);
 
   // ── Gradienten ──────────────────────────────────────────────
   static const LinearGradient bgGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFF07101E), Color(0xFF0A1525)],
+    colors: [Color(0xFF000000), Color(0xFF0A0A0F)],
   );
 
   static LinearGradient neonGradient(Color color) => LinearGradient(
@@ -89,42 +102,41 @@ class AppTheme {
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF2A7DE1), Color(0xFF10A899)],
+    colors: [iosBlue, iosTeal],
   );
 
   // ── Text-Styles ─────────────────────────────────────────────
   static const TextStyle headline1 = TextStyle(
-    fontSize: 26, fontWeight: FontWeight.w700,
-    color: textPrimary, letterSpacing: -0.3,
+    fontSize: 28, fontWeight: FontWeight.w700,
+    color: textPrimary, letterSpacing: -0.5,
   );
   static const TextStyle headline2 = TextStyle(
-    fontSize: 20, fontWeight: FontWeight.w700,
-    color: textPrimary, letterSpacing: -0.2,
+    fontSize: 22, fontWeight: FontWeight.w700,
+    color: textPrimary, letterSpacing: -0.3,
   );
   static const TextStyle headline3 = TextStyle(
-    fontSize: 15, fontWeight: FontWeight.w600,
-    color: textPrimary, letterSpacing: 0.1,
+    fontSize: 17, fontWeight: FontWeight.w600,
+    color: textPrimary, letterSpacing: -0.1,
   );
   static const TextStyle body = TextStyle(
-    fontSize: 14, fontWeight: FontWeight.w400,
+    fontSize: 15, fontWeight: FontWeight.w400,
     color: textSecondary, height: 1.55,
   );
   static const TextStyle bodyBold = TextStyle(
-    fontSize: 14, fontWeight: FontWeight.w600,
+    fontSize: 15, fontWeight: FontWeight.w600,
     color: textPrimary,
   );
   static const TextStyle caption = TextStyle(
-    fontSize: 11, fontWeight: FontWeight.w500,
-    color: textMuted, letterSpacing: 0.3,
+    fontSize: 13, fontWeight: FontWeight.w400,
+    color: textMuted,
   );
   static const TextStyle neonLabel = TextStyle(
-    fontSize: 10, fontWeight: FontWeight.w700,
-    color: primary, letterSpacing: 1.2,
+    fontSize: 11, fontWeight: FontWeight.w600,
+    color: iosBlue, letterSpacing: 0.5,
   );
   static const TextStyle monoValue = TextStyle(
-    fontSize: 13, fontWeight: FontWeight.w600,
-    color: textPrimary, letterSpacing: 0.5,
-    fontFamily: 'monospace',
+    fontSize: 13, fontWeight: FontWeight.w500,
+    color: textPrimary, letterSpacing: 0.3,
   );
 
   // ── Flutter ThemeData ────────────────────────────────────────
@@ -132,34 +144,32 @@ class AppTheme {
     brightness: Brightness.dark,
     scaffoldBackgroundColor: bg,
     colorScheme: const ColorScheme.dark(
-      primary: primary,
-      secondary: accent,
+      primary: iosBlue,
+      secondary: iosTeal,
       surface: bgCard,
       background: bg,
     ),
     useMaterial3: true,
-    fontFamily: 'Roboto',
     appBarTheme: const AppBarTheme(
-      backgroundColor: bgCard,
+      backgroundColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       titleTextStyle: TextStyle(
         fontSize: 17, fontWeight: FontWeight.w600,
-        color: textPrimary, letterSpacing: 0.1,
+        color: textPrimary,
       ),
       iconTheme: IconThemeData(color: textSecondary),
     ),
-    tabBarTheme: TabBarTheme(
-      indicator: const UnderlineTabIndicator(
-        borderSide: BorderSide(color: primary, width: 2),
+    tabBarTheme: const TabBarTheme(
+      indicator: UnderlineTabIndicator(
+        borderSide: BorderSide(color: iosBlue, width: 2),
       ),
-      labelColor: primary,
+      labelColor: iosBlue,
       unselectedLabelColor: textMuted,
-      labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+      labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
     ),
-    dividerTheme: DividerThemeData(
-      color: glassBorder,
-      thickness: 1,
+    dividerTheme: const DividerThemeData(
+      color: separator, thickness: 0.5,
     ),
     textTheme: const TextTheme(
       titleLarge: headline2,
@@ -170,29 +180,28 @@ class AppTheme {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: primary,
+        backgroundColor: iosBlue,
         foregroundColor: Colors.white,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 22),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusMid)),
-        textStyle: const TextStyle(
-            fontWeight: FontWeight.w600, fontSize: 14),
+            borderRadius: BorderRadius.circular(radiusLarge)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: primary,
-        side: const BorderSide(color: primary, width: 1),
-        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 22),
+        foregroundColor: iosBlue,
+        side: const BorderSide(color: iosBlue, width: 1),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusMid)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            borderRadius: BorderRadius.circular(radiusLarge)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: glassWhite,
+      fillColor: glassFill,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusSmall),
         borderSide: const BorderSide(color: glassBorder),
@@ -203,23 +212,15 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusSmall),
-        borderSide: const BorderSide(color: primary, width: 1.5),
+        borderSide: const BorderSide(color: iosBlue, width: 1.5),
       ),
-      hintStyle: const TextStyle(color: textMuted, fontSize: 13),
-      labelStyle: const TextStyle(color: textSecondary, fontSize: 13),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    ),
-    chipTheme: ChipThemeData(
-      backgroundColor: glassWhite,
-      selectedColor: primary.withOpacity(0.2),
-      labelStyle: const TextStyle(color: textSecondary, fontSize: 12),
-      side: const BorderSide(color: glassBorder),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusSmall)),
+      hintStyle: const TextStyle(color: textMuted, fontSize: 15),
+      labelStyle: const TextStyle(color: textSecondary, fontSize: 15),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: bgSurface,
-      contentTextStyle: const TextStyle(color: textPrimary),
+      contentTextStyle: const TextStyle(color: textPrimary, fontSize: 14),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusSmall)),
       behavior: SnackBarBehavior.floating,
@@ -227,8 +228,8 @@ class AppTheme {
     dialogTheme: DialogTheme(
       backgroundColor: bgCard,
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusLarge)),
-      titleTextStyle: headline2,
+          borderRadius: BorderRadius.circular(radiusXL)),
+      titleTextStyle: headline3,
     ),
   );
 }
