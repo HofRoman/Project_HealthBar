@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 
 /// Google Gemini 2.0 Flash API Service
 /// KOMPLETT KOSTENLOS:
@@ -40,9 +41,16 @@ VERHALTENSREGELN:
 ''';
 
   // ── API Key Management ──────────────────────────────────────
+
+  /// Gibt den aktiven API-Key zurück.
+  /// Priorität: 1. In Einstellungen gespeicherter Key
+  ///            2. Eingebetteter Key aus api_config.dart
   static Future<String?> getSavedApiKey() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_apiKeyPref);
+    final stored = prefs.getString(_apiKeyPref);
+    if (stored != null && stored.trim().isNotEmpty) return stored.trim();
+    if (ApiConfig.isConfigured) return ApiConfig.geminiApiKey;
+    return null;
   }
 
   static Future<void> saveApiKey(String key) async {
@@ -51,6 +59,7 @@ VERHALTENSREGELN:
   }
 
   static Future<bool> hasApiKey() async {
+    if (ApiConfig.isConfigured) return true;
     final key = await getSavedApiKey();
     return key != null && key.trim().isNotEmpty;
   }
