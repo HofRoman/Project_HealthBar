@@ -127,7 +127,7 @@ class _HealthScoreScreenState extends State<HealthScoreScreen>
   Color _scoreColor(int s) {
     if (s >= 80) return AppTheme.neonGreen;
     if (s >= 60) return AppTheme.neon;
-    if (s >= 40) return const Color(0xFFFFB300);
+    if (s >= 40) return AppTheme.grey70;
     return AppTheme.colorFood;
   }
 
@@ -299,7 +299,7 @@ class _ScoreRing extends StatelessWidget {
   Color get _c {
     if (score >= 80) return AppTheme.neonGreen;
     if (score >= 60) return AppTheme.neon;
-    if (score >= 40) return const Color(0xFFFFB300);
+    if (score >= 40) return AppTheme.grey70;
     return AppTheme.colorFood;
   }
 

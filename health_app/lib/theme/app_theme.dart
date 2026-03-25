@@ -1,74 +1,82 @@
 import 'package:flutter/material.dart';
 
-/// HealthBar — iOS 26 Liquid Glass Design System
+/// HealthBar — Monochrome Design System (Black & White)
 class AppTheme {
-  // ── Hintergrundfarben (iOS Dark) ─────────────────────────────
-  static const Color bg         = Color(0xFF000000);   // Pure Black (OLED)
-  static const Color bgCard     = Color(0xFF1C1C1E);   // iOS systemBackground
-  static const Color bgSurface  = Color(0xFF2C2C2E);   // iOS secondarySystemBackground
-  static const Color bgTertiary = Color(0xFF3A3A3C);   // iOS tertiarySystemBackground
+  // ── Hintergrundfarben ─────────────────────────────────────────
+  static const Color bg         = Color(0xFF000000);   // Pure Black
+  static const Color bgCard     = Color(0xFF1C1C1E);   // Dark Grey
+  static const Color bgSurface  = Color(0xFF2C2C2E);   // Mid Dark Grey
+  static const Color bgTertiary = Color(0xFF3A3A3C);   // Light Dark Grey
 
-  // ── iOS System Colors ────────────────────────────────────────
-  static const Color iosBlue    = Color(0xFF0A84FF);
-  static const Color iosGreen   = Color(0xFF30D158);
-  static const Color iosRed     = Color(0xFFFF453A);
-  static const Color iosOrange  = Color(0xFFFF9F0A);
-  static const Color iosPurple  = Color(0xFFBF5AF2);
-  static const Color iosTeal    = Color(0xFF40C8E0);
-  static const Color iosIndigo  = Color(0xFF5E5CE6);
-  static const Color iosPink    = Color(0xFFFF375F);
-  static const Color iosYellow  = Color(0xFFFFD60A);
+  // ── Monochrome System Colors ──────────────────────────────────
+  static const Color white      = Color(0xFFFFFFFF);
+  static const Color grey90     = Color(0xFFE5E5EA);   // Near white
+  static const Color grey70     = Color(0xFFAEAEB2);   // Medium grey
+  static const Color grey50     = Color(0xFF8E8E93);   // Mid grey
+  static const Color grey30     = Color(0xFF48484A);   // Dark grey
+  static const Color grey20     = Color(0xFF3A3A3C);   // Very dark grey
 
-  // ── Text (iOS Standard) ──────────────────────────────────────
+  // ── iOS System Colors → Monochrome Aliases ───────────────────
+  static const Color iosBlue    = white;
+  static const Color iosGreen   = grey90;
+  static const Color iosRed     = white;
+  static const Color iosOrange  = grey70;
+  static const Color iosPurple  = grey70;
+  static const Color iosTeal    = grey90;
+  static const Color iosIndigo  = grey90;
+  static const Color iosPink    = grey90;
+  static const Color iosYellow  = grey70;
+
+  // ── Text ──────────────────────────────────────────────────────
   static const Color textPrimary   = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0x99EBEBF5);  // 60% white
-  static const Color textMuted     = Color(0x4DEBEBF5);  // 30% white
-  static const Color separator     = Color(0x14545458);  // iOS separator
+  static const Color textSecondary = Color(0xFFAEAEB2);  // grey70
+  static const Color textMuted     = Color(0xFF8E8E93);  // grey50
+  static const Color separator     = Color(0xFF3A3A3C);  // grey20
 
   // ── Glas/Fill ────────────────────────────────────────────────
-  static const Color glassFill    = Color(0x14FFFFFF);   // iOS fill
-  static const Color glassBorder  = Color(0x18FFFFFF);   // iOS border
+  static const Color glassFill    = Color(0x1AFFFFFF);   // 10% white
+  static const Color glassBorder  = Color(0x26FFFFFF);   // 15% white
   static const Color glassWhite   = Color(0x0AFFFFFF);
   static const Color glassWhite20 = Color(0x1AFFFFFF);
 
-  // ── Compatibility Aliases (für bestehende Screens) ───────────
-  static const Color primary    = iosBlue;
-  static const Color accent     = iosTeal;
-  static const Color success    = iosGreen;
-  static const Color warning    = iosOrange;
-  static const Color danger     = iosRed;
-  static const Color info       = iosIndigo;
-  static const Color neon       = iosTeal;
-  static const Color neonGreen  = iosGreen;
-  static const Color neonBlue   = iosBlue;
-  static const Color neonPurple = iosPurple;
+  // ── Compatibility Aliases ─────────────────────────────────────
+  static const Color primary    = white;
+  static const Color accent     = grey90;
+  static const Color success    = grey90;
+  static const Color warning    = grey70;
+  static const Color danger     = white;
+  static const Color info       = grey90;
+  static const Color neon       = white;
+  static const Color neonGreen  = grey90;
+  static const Color neonBlue   = white;
+  static const Color neonPurple = grey70;
 
-  // ── Modul-Farben ─────────────────────────────────────────────
-  static const Color colorBmi       = iosBlue;
-  static const Color colorWater     = iosTeal;
-  static const Color colorActivity  = iosOrange;
-  static const Color colorSleep     = iosPurple;
-  static const Color colorFood      = iosRed;
-  static const Color colorAI        = iosIndigo;
-  static const Color colorFace      = iosTeal;
-  static const Color colorSymptom   = iosPink;
-  static const Color colorScore     = iosGreen;
-  static const Color colorResearch  = iosYellow;
-  static const Color colorVitals    = iosPink;
-  static const Color colorMeds      = iosPurple;
-  static const Color colorReport    = iosTeal;
-  static const Color colorEmergency = iosRed;
+  // ── Modul-Farben → alle grau ──────────────────────────────────
+  static const Color colorBmi       = white;
+  static const Color colorWater     = grey90;
+  static const Color colorActivity  = grey70;
+  static const Color colorSleep     = grey70;
+  static const Color colorFood      = grey90;
+  static const Color colorAI        = white;
+  static const Color colorFace      = grey90;
+  static const Color colorSymptom   = grey70;
+  static const Color colorScore     = white;
+  static const Color colorResearch  = grey70;
+  static const Color colorVitals    = grey90;
+  static const Color colorMeds      = grey70;
+  static const Color colorReport    = white;
+  static const Color colorEmergency = white;
 
-  // ── Radien (iOS 26 — sehr rund) ──────────────────────────────
+  // ── Radien ────────────────────────────────────────────────────
   static const double radiusSmall = 10;
   static const double radiusMid   = 14;
   static const double radiusLarge = 20;
   static const double radiusXL    = 28;
 
-  // ── Schatten (iOS — weich, kein Neon) ───────────────────────
+  // ── Schatten ─────────────────────────────────────────────────
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withOpacity(0.3),
+      color: Colors.black.withOpacity(0.5),
       blurRadius: 20,
       offset: const Offset(0, 4),
     ),
@@ -76,25 +84,24 @@ class AppTheme {
 
   static List<BoxShadow> subtleGlow(Color color) => [
     BoxShadow(
-      color: color.withOpacity(0.2),
+      color: Colors.white.withOpacity(0.05),
       blurRadius: 16,
       spreadRadius: -4,
     ),
   ];
 
-  // Compatibility alias
   static List<BoxShadow> glow(Color color, {double intensity = 0.2}) =>
       subtleGlow(color);
 
-  // ── Gradienten ──────────────────────────────────────────────
+  // ── Gradienten ───────────────────────────────────────────────
   static const LinearGradient bgGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFF000000), Color(0xFF0A0A0F)],
+    colors: [Color(0xFF000000), Color(0xFF0A0A0A)],
   );
 
-  static LinearGradient neonGradient(Color color) => LinearGradient(
-    colors: [color, color.withOpacity(0.7)],
+  static LinearGradient neonGradient(Color color) => const LinearGradient(
+    colors: [white, grey90],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -102,10 +109,10 @@ class AppTheme {
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [iosBlue, iosTeal],
+    colors: [white, grey90],
   );
 
-  // ── Text-Styles ─────────────────────────────────────────────
+  // ── Text-Styles ───────────────────────────────────────────────
   static const TextStyle headline1 = TextStyle(
     fontSize: 28, fontWeight: FontWeight.w700,
     color: textPrimary, letterSpacing: -0.5,
@@ -132,20 +139,20 @@ class AppTheme {
   );
   static const TextStyle neonLabel = TextStyle(
     fontSize: 11, fontWeight: FontWeight.w600,
-    color: iosBlue, letterSpacing: 0.5,
+    color: textSecondary, letterSpacing: 0.5,
   );
   static const TextStyle monoValue = TextStyle(
     fontSize: 13, fontWeight: FontWeight.w500,
     color: textPrimary, letterSpacing: 0.3,
   );
 
-  // ── Flutter ThemeData ────────────────────────────────────────
+  // ── Flutter ThemeData ─────────────────────────────────────────
   static ThemeData get theme => ThemeData(
     brightness: Brightness.dark,
     scaffoldBackgroundColor: bg,
     colorScheme: const ColorScheme.dark(
-      primary: iosBlue,
-      secondary: iosTeal,
+      primary: white,
+      secondary: grey90,
       surface: bgCard,
       background: bg,
     ),
@@ -162,9 +169,9 @@ class AppTheme {
     ),
     tabBarTheme: const TabBarTheme(
       indicator: UnderlineTabIndicator(
-        borderSide: BorderSide(color: iosBlue, width: 2),
+        borderSide: BorderSide(color: white, width: 2),
       ),
-      labelColor: iosBlue,
+      labelColor: white,
       unselectedLabelColor: textMuted,
       labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
     ),
@@ -180,8 +187,8 @@ class AppTheme {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: iosBlue,
-        foregroundColor: Colors.white,
+        backgroundColor: white,
+        foregroundColor: Colors.black,
         elevation: 0,
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
         shape: RoundedRectangleBorder(
@@ -191,8 +198,8 @@ class AppTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: iosBlue,
-        side: const BorderSide(color: iosBlue, width: 1),
+        foregroundColor: white,
+        side: const BorderSide(color: white, width: 1),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusLarge)),
@@ -212,7 +219,7 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusSmall),
-        borderSide: const BorderSide(color: iosBlue, width: 1.5),
+        borderSide: const BorderSide(color: white, width: 1.5),
       ),
       hintStyle: const TextStyle(color: textMuted, fontSize: 15),
       labelStyle: const TextStyle(color: textSecondary, fontSize: 15),

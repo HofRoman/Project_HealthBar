@@ -119,8 +119,8 @@ class _ResearchScreenState extends State<ResearchScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Color(0xFF0A1628),
-                          Color(0xFF1A0A28),
+                          Color(0xFF111111),
+                          Color(0xFF000000),
                         ],
                       ),
                     ),

@@ -92,7 +92,7 @@ class _SleepScreenState extends State<SleepScreen> {
   Color _qualityColor(int q) {
     if (q >= 4) return AppTheme.neonGreen;
     if (q >= 3) return AppTheme.neon;
-    if (q >= 2) return const Color(0xFFFFB300);
+    if (q >= 2) return AppTheme.grey70;
     return AppTheme.colorFood;
   }
 
@@ -199,7 +199,7 @@ class _SleepScreenState extends State<SleepScreen> {
                   label: 'Aufgewacht',
                   time: _wakeTime,
                   icon: Icons.wb_sunny_outlined,
-                  color: const Color(0xFFFFB300),
+                  color: AppTheme.grey70,
                   onTap: () => _pickTime(false),
                 )),
               ]),
