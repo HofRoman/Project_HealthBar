@@ -8,6 +8,8 @@ import '../widgets/glass_card.dart';
 import 'ai_chat_screen.dart';
 import 'face_scan_screen.dart';
 import 'research_screen.dart';
+import 'health_report_screen.dart';
+import 'first_aid_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -225,6 +227,54 @@ class _HomeScreenState extends State<HomeScreen>
                       ],
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: GlassCard(
+                      glowColor: AppTheme.colorReport,
+                      glowIntensity: 0.2,
+                      onTap: () => _go(const HealthReportScreen()),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.colorReport.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.summarize,
+                                color: AppTheme.colorReport, size: 18),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('KI-Bericht', style: AppTheme.bodyBold),
+                          const Text('Komplette Analyse', style: AppTheme.caption),
+                        ],
+                      ),
+                    )),
+                    const SizedBox(width: 10),
+                    Expanded(child: GlassCard(
+                      glowColor: AppTheme.colorEmergency,
+                      glowIntensity: 0.2,
+                      onTap: () => _go(const FirstAidScreen()),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.colorEmergency.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.emergency,
+                                color: AppTheme.colorEmergency, size: 18),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('Erste Hilfe', style: AppTheme.bodyBold),
+                          const Text('Notfall-Guide + KI', style: AppTheme.caption),
+                        ],
+                      ),
+                    )),
+                  ]),
                   const SizedBox(height: 20),
 
                   // ── Heute detailliert ─────────────────────────

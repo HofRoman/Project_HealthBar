@@ -8,6 +8,8 @@ import 'water_screen.dart';
 import 'activity_screen.dart';
 import 'sleep_screen.dart';
 import 'nutrition_screen.dart';
+import 'vitals_screen.dart';
+import 'medication_screen.dart';
 
 class TrackingHubScreen extends StatefulWidget {
   const TrackingHubScreen({super.key});
@@ -179,6 +181,10 @@ class _TrackingHubScreenState extends State<TrackingHubScreen> {
                         Icons.bedtime, AppTheme.colorSleep, const SleepScreen()),
                     ('Ernährung', 'Kalorien & Nährstoffe',
                         Icons.restaurant, AppTheme.colorFood, const NutritionScreen()),
+                    ('Vitalzeichen', 'Blutdruck, Puls, SpO₂, Temperatur',
+                        Icons.monitor_heart, AppTheme.colorVitals, const VitalsScreen()),
+                    ('Medikamente', 'Einnahmeplan & Dosierung',
+                        Icons.medication, AppTheme.colorMeds, const MedicationScreen()),
                   ].map((m) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: _TrackModuleRow(

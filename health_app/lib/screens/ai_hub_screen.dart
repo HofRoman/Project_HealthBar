@@ -6,6 +6,8 @@ import 'ai_chat_screen.dart';
 import 'face_scan_screen.dart';
 import 'symptom_checker_screen.dart';
 import 'health_score_screen.dart';
+import 'health_report_screen.dart';
+import 'first_aid_screen.dart';
 import 'settings_screen.dart';
 
 class AiHubScreen extends StatefulWidget {
@@ -180,6 +182,26 @@ class _AiHubScreenState extends State<AiHubScreen> {
                   color: AppTheme.colorScore,
                   badge: 'KI',
                   onTap: () => _go(const HealthScoreScreen()),
+                ),
+                const SizedBox(height: 12),
+                _AiFeatureRow(
+                  title: 'KI Gesundheitsbericht',
+                  subtitle:
+                      'Vollständige KI-Analyse aller Daten + wissenschaftliche Empfehlungen',
+                  icon: Icons.summarize,
+                  color: AppTheme.colorReport,
+                  badge: 'NEU',
+                  onTap: () => _go(const HealthReportScreen()),
+                ),
+                const SizedBox(height: 12),
+                _AiFeatureRow(
+                  title: 'Erste Hilfe & Notfall',
+                  subtitle:
+                      'Sofortmaßnahmen bei Notfällen mit KI-Unterstützung',
+                  icon: Icons.emergency,
+                  color: AppTheme.colorEmergency,
+                  badge: 'SOS',
+                  onTap: () => _go(const FirstAidScreen()),
                 ),
                 const SizedBox(height: 12),
 

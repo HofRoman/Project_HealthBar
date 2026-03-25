@@ -32,6 +32,10 @@ class AppTheme {
   static const Color colorSymptom  = Color(0xFFEC407A);
   static const Color colorScore    = Color(0xFF66BB6A);
   static const Color colorResearch = Color(0xFFFFCA28);
+  static const Color colorVitals   = Color(0xFFFF4081);  // Vitalzeichen-Pink
+  static const Color colorMeds     = Color(0xFF7E57C2);  // Medikamenten-Violett
+  static const Color colorReport   = Color(0xFF26C6DA);  // Bericht-Türkis
+  static const Color colorEmergency = Color(0xFFFF1744); // Notfall-Rot
 
   // ── Radien ──────────────────────────────────────────────────
   static const double radiusSmall  = 12;

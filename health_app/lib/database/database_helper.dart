@@ -30,9 +30,15 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 3,
       onCreate: _createTables,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) await _createVitalsTable(db);
+    if (oldVersion < 3) await _createMedicationTable(db);
   }
 
   Future<void> _createTables(Database db, int version) async {
@@ -90,6 +96,39 @@ class DatabaseHelper {
         carbs REAL DEFAULT 0,
         fat REAL DEFAULT 0,
         date TEXT NOT NULL
+      )
+    ''');
+
+    await _createVitalsTable(db);
+    await _createMedicationTable(db);
+  }
+
+  Future<void> _createVitalsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS vitals_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        systolic INTEGER,
+        diastolic INTEGER,
+        heart_rate INTEGER,
+        spo2 INTEGER,
+        temperature REAL,
+        notes TEXT,
+        date TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createMedicationTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS medication_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        dosage TEXT NOT NULL,
+        frequency TEXT NOT NULL,
+        time_of_day TEXT NOT NULL,
+        notes TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL
       )
     ''');
   }
@@ -204,5 +243,55 @@ class DatabaseHelper {
   Future<void> deleteNutrition(int id) async {
     final db = await database;
     await db.delete('nutrition_entries', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Vitalzeichen ─────────────────────────────────────────────
+  Future<int> insertVitals(Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.insert('vitals_entries', data);
+  }
+
+  Future<List<Map<String, dynamic>>> getVitalsEntries({int limit = 30}) async {
+    final db = await database;
+    return await db.query('vitals_entries',
+        orderBy: 'date DESC', limit: limit);
+  }
+
+  Future<List<Map<String, dynamic>>> getVitalsToday() async {
+    final db = await database;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    return await db.query('vitals_entries',
+        where: 'date LIKE ?', whereArgs: ['$today%']);
+  }
+
+  Future<void> deleteVitals(int id) async {
+    final db = await database;
+    await db.delete('vitals_entries', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Medikamente ──────────────────────────────────────────────
+  Future<int> insertMedication(Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.insert('medication_entries', data);
+  }
+
+  Future<List<Map<String, dynamic>>> getMedications({bool activeOnly = false}) async {
+    final db = await database;
+    return await db.query(
+      'medication_entries',
+      where: activeOnly ? 'is_active = 1' : null,
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  Future<void> updateMedicationActive(int id, bool active) async {
+    final db = await database;
+    await db.update('medication_entries', {'is_active': active ? 1 : 0},
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteMedication(int id) async {
+    final db = await database;
+    await db.delete('medication_entries', where: 'id = ?', whereArgs: [id]);
   }
 }
